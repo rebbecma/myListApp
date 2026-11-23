@@ -935,12 +935,9 @@ function newPanel(isTpl){
     h('option', { value:'' }, 'Blank list'),
     tpls.map(t => h('option', { value:t.id }, 'From template: ' + t.name)));
   const name = h('input', { type:'text', placeholder:isTpl ? 'Template name' : 'List name', 'aria-label':'Name' });
-  const pasteLabel = h('label', null, 'Items (optional): one per line, a line ending in a colon starts a section');
-  const paste = h('textarea', { placeholder:'Kitchen:\nWipe counters\nSweep floor\nBathroom:\nScrub toilet', 'aria-label':'Paste items' });
   let auto = '';
   const sync = () => {
     const t = sel && sel.value ? lists.get(sel.value) : null;
-    pasteLabel.hidden = paste.hidden = !!t;
     if (t && (name.value === '' || name.value === auto)){
       auto = t.name + (dateLabel() ? ', ' + dateLabel() : ''); name.value = auto;
     } else if (!t && auto && name.value === auto){
@@ -956,7 +953,7 @@ function newPanel(isTpl){
     const nm = name.value.trim();
     if (!nm){ name.focus(); return; }
     const t = sel && sel.value ? lists.get(sel.value) : null;
-    const id = addList(nm, t ? cloneGroups(t) : parseItems(paste.value), isTpl, t ? t.labels : [], t ? { desc:t.desc, cols:t.cols } : null);
+    const id = addList(nm, t ? cloneGroups(t) : [makeGroup('', [])], isTpl, t ? t.labels : [], t ? { desc:t.desc, cols:t.cols } : null);
     ui.newOpen = false; ui.newTplOpen = false; ui.newTpl = null;
     go(id);
   };
@@ -964,7 +961,6 @@ function newPanel(isTpl){
   return h('div', { class:'panel' },
     sel ? h('label', null, 'Start from') : null, sel,
     h('label', null, 'Name'), name,
-    pasteLabel, paste,
     h('button', { class:'btn primary', type:'button', onclick:make }, isTpl ? 'Create template' : 'Create list'));
 }
 
