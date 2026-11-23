@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Checklists</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#2f6f5e">
 <style>
 :root{
   --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1b; --muted:#6b6a66; --line:#e4e2dc;
@@ -711,7 +715,6 @@ function banner(){
   if (errMsg) return h('div', { class:'banner' }, errMsg);
   if (mode === 'local' && FD.state === 'needs-permission')
     return h('div', { class:'banner' }, ROOT_NAME + ' needs access again. ', h('button', { class:'link', type:'button', onclick:fdReconnect }, 'Reconnect'));
-  if (mode === 'local' && FD.state === 'none') return h('div', { class:'banner' }, 'Not connected to Claude storage, so changes save in this browser only.');
   if (mode === 'cloud' && !loaded && slow) return h('div', { class:'banner' }, 'Still trying to reach your saved lists...');
   return document.createDocumentFragment();
 }
