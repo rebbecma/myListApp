@@ -122,6 +122,15 @@ li:first-child{border-top:0}
 .tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 8px}
 .etags{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 10px}
 .lblbox{display:grid;gap:8px}
+#adddets input{flex:1 1 0;min-width:0}
+#addbar.multi #addtext{flex:1 1 100%}
+.desc{margin:-4px 0 10px;color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.dets{flex:none;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:10px;width:var(--w)}
+.dets > *{min-width:0;overflow-wrap:anywhere;color:var(--muted);font-size:14px;text-align:left}
+.dets > :last-child{text-align:right}
+.colhead{display:flex;justify-content:flex-end;padding-right:15px;margin:6px 0 2px;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.colhead .dets > *{font-size:12px}
+.etags input{flex:1 1 0;min-width:0}
 #addgroup{width:38%;min-width:0;flex:none}
 #addgroup[hidden]{display:none}
 #addtext{flex:1;min-width:0}
@@ -133,6 +142,30 @@ li:first-child{border-top:0}
 #toast[hidden]{display:none}
 #toast button{background:none;border:0;color:var(--accent);font-weight:700;padding:0 2px}
 @media (prefers-color-scheme: dark){ #toast button{color:#0f6b55} }
+@media print{
+  @page{margin:16mm 14mm}
+  :root{--bg:#fff;--card:#fff;--ink:#000;--muted:#555;--line:#bbb;--accent:#000;--accent-ink:#000;--done:#000}
+  body{background:#fff;color:#000;font-size:12.5pt}
+  #app{max-width:none;display:block;min-height:0}
+  #main{padding:0}
+  .top .btn,.top .ib,#addbar,#toast,.banner,.bar,.note,.actions,.chips,.footer,.cnt,.ghead .link,.tags,.etags{display:none!important}
+  .top{display:block;border-bottom:2px solid #000;margin:0 0 6px;padding-bottom:6px}
+  .top h1{font-size:23pt}
+  .desc{margin:0 0 6px;font-size:10.5pt}
+  .colhead{margin:8px 0 0;padding-right:4px}
+  .colhead .dets > *{font-size:8.5pt}
+  .group{break-inside:avoid;margin:0}
+  .ghead{margin:16px 0 4px;padding:0 0 3px;border-bottom:1px solid #999;break-after:avoid}
+  .gname{padding:0;border:0;background:none;font-size:9.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.02em;color:#555}
+  ul{border:0;border-radius:0;background:none;overflow:visible}
+  li{border:0}
+  .row{padding:3px 4px;min-height:0;gap:10px}
+  .box{width:14px;height:14px;border:1.5px solid #222;border-radius:2px;background:none}
+  .row input:checked + .box{background:none;border-color:#222}
+  .row input:checked + .box::after{width:4px;height:9px;border:solid #000;border-width:0 2px 2px 0;transform:rotate(45deg) translate(-.5px,-1px)}
+  .done .txt{color:#000;text-decoration:none}
+  .dets > *{color:#555;font-size:11pt}
+}
 </style>
 </head>
 <body>
@@ -142,6 +175,7 @@ li:first-child{border-top:0}
     <div id="addtags" hidden></div>
     <select id="addgroup" aria-label="Section" hidden></select>
     <input id="addtext" type="text" placeholder="Add an item" autocomplete="off" enterkeyhint="done" aria-label="New item">
+    <span id="adddets" style="display:contents"></span>
     <button class="btn primary" type="submit">Add</button>
   </form>
 </div>
@@ -176,7 +210,7 @@ const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(3
 const ui = {
   edit:false, collapsed:new Set(), confirm:null, confirmT:null,
   newOpen:false, newTplOpen:false, newTpl:null, keepNew:false,
-  exportText:null, lastGroup:{}, filter:new Set(), addLabels:new Set(),
+  exportText:null, lastGroup:{}, printing:false, filter:new Set(), addLabels:new Set(),
   storageOpen:false, importOpen:false, importText:'', bkText:null, pendingFolder:null
 };
 let mode = 'loading';            // loading | cloud | local
@@ -193,18 +227,24 @@ function normalize(id, d){
     name: String(d.name || 'Untitled'),
     pos: Number(d.pos) || 0,
     tpl: !!d.tpl,
+    desc: String(d.desc || ''),
+    cols: (Array.isArray(d.cols) ? d.cols : d.col ? [d.col] : []).map(String).slice(0, MAXX),
     labels: (Array.isArray(d.labels) ? d.labels : []).map(String),
     groups: groups.map(g => ({
       id: String(g.id || uid()),
       name: String(g.name || ''),
       items: (Array.isArray(g.items) ? g.items : []).map(it => ({
         id: String(it.id || uid()), t: String(it.t || ''), d: !!it.d,
+        x: (Array.isArray(it.x) ? it.x : it.x ? [it.x] : []).map(String),
         l: (Array.isArray(it.l) ? it.l : []).map(String)
       }))
     }))
   };
 }
-const toDoc = l => ({ name:l.name, pos:l.pos, tpl:!!l.tpl, labels:l.labels || [], groups:l.groups });
+const MAXX = 2;   // extra columns beside the item itself
+const toDoc = l => ({ name:l.name, pos:l.pos, tpl:!!l.tpl, desc:l.desc || '', cols:l.cols || [], labels:l.labels || [], groups:l.groups });
+const usesDet = l => l.cols.length > 0;
+const xVal = (it, i) => (it.x && it.x[i]) || '';
 const cleanLabel = v => String(v).replace(/[#,\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
 const encLabel = n => n.replace(/\s+/g, '_');
 const stats = l => {
@@ -284,15 +324,15 @@ function findGroup(l, gid){ return l.groups.find(g => g.id === gid); }
 function findItem(g, iid){ return g && g.items.find(i => i.id === iid); }
 function swap(arr, i, j){ if (j < 0 || j >= arr.length) return; const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
 function makeGroup(name, items){
-  return { id:uid(), name, items:(items || []).map(t => ({ id:uid(), t, d:false, l:[] })) };
+  return { id:uid(), name, items:(items || []).map(t => { const p = String(t).split(' | '); return { id:uid(), t:p[0].trim(), d:false, x:p.slice(1, 1 + MAXX).map(v => v.trim()), l:[] }; }) };
 }
 function cloneGroups(src){
-  return src.groups.map(g => ({ id:uid(), name:g.name, items:g.items.map(i => ({ id:uid(), t:i.t, d:false, l:(i.l || []).slice() })) }));
+  return src.groups.map(g => ({ id:uid(), name:g.name, items:g.items.map(i => ({ id:uid(), t:i.t, d:false, x:(i.x || []).slice(), l:(i.l || []).slice() })) }));
 }
-function addList(name, groups, isTpl, labels){
+function addList(name, groups, isTpl, labels, extra){
   const id = 'list-' + uid();
   const pos = Math.max(0, ...[...lists.values()].map(x => x.pos)) + 1;
-  lists.set(id, { id, name, pos, tpl:!!isTpl, labels:(labels || []).slice(), groups });
+  lists.set(id, { id, name, pos, tpl:!!isTpl, desc:(extra && extra.desc) || '', cols:((extra && extra.cols) || []).slice(0, MAXX), labels:(labels || []).slice(), groups });
   persist(id);
   return id;
 }
@@ -322,14 +362,21 @@ function useTemplate(t){
 
 /* ---------- markdown: all lists in one file ---------- */
 const mdJoin = out => out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+function xMd(i, l){
+  const v = (l.cols || []).map((c, k) => xVal(i, k));
+  while (v.length && !v[v.length - 1]) v.pop();
+  return v.map(q => ' | ' + q).join('');
+}
 function docMd(l){
   const out = ['# ' + l.name];
+  if (l.desc) out.push('> ' + l.desc.replace(/\s*\n\s*/g, ' '));
+  if (l.cols && l.cols.length) out.push('columns: ' + l.cols.join(', '));
   if (l.labels && l.labels.length) out.push('labels: ' + l.labels.join(', '));
   out.push('');
   l.groups.forEach((g, gi) => {
     const nm = g.name || (gi ? 'Section ' + (gi + 1) : '');
     if (nm) out.push('## ' + nm);
-    g.items.forEach(i => out.push('- [' + (i.d ? 'x' : ' ') + '] ' + i.t + (i.l && i.l.length ? ' ' + i.l.map(x => '#' + encLabel(x)).join(' ') : '')));
+    g.items.forEach(i => out.push('- [' + (i.d ? 'x' : ' ') + '] ' + i.t + xMd(i, l) + (i.l && i.l.length ? ' ' + i.l.map(x => '#' + encLabel(x)).join(' ') : '')));
     out.push('');
   });
   return out;
@@ -342,7 +389,7 @@ function serializeAll(tpl){
 const serializeOne = l => mdJoin(docMd(l));
 function parseAll(text){
   const docs = []; let cur = null, grp = null;
-  const newDoc = name => { cur = { name, tpl:false, labels:[], groups:[] }; grp = null; docs.push(cur); };
+  const newDoc = name => { cur = { name, tpl:false, desc:'', cols:[], labels:[], groups:[] }; grp = null; docs.push(cur); };
   const add = (t, d) => {
     t = t.trim(); if (!t) return;
     if (!cur) newDoc('Imported');
@@ -353,13 +400,21 @@ function parseAll(text){
       tags = mt[2].trim().split(/\s+/).map(x => x.slice(1)).map(tok => cur.labels.find(n => encLabel(n) === tok) || tok.replace(/_/g, ' '));
       tags.forEach(n => { if (!cur.labels.includes(n)) cur.labels.push(n); });
     }
-    grp.items.push({ id:uid(), t, d, l:tags });
+    let x = []; const parts = t.split(' | ');
+    if (parts.length > 1 && parts[0].trim()){
+      t = parts[0].trim(); x = parts.slice(1).map(v => v.trim());
+      if (x.length > MAXX) x = [...x.slice(0, MAXX - 1), x.slice(MAXX - 1).join(' | ')];
+      while (cur.cols.length < x.length) cur.cols.push('Column ' + (cur.cols.length + 2));
+    }
+    grp.items.push({ id:uid(), t, d, x, l:tags });
   };
   String(text).split(/\r?\n/).forEach(raw => {
     const line = raw.trim(); let m;
     if (!line || /^(-{3,}|\*{3,}|_{3,})$/.test(line)) return;
     if ((m = line.match(/^#\s+(.*)$/))){ newDoc(m[1].trim() || 'Untitled'); return; }
     if (/^<!--.*-->$/.test(line)) return;
+    if (cur && !cur.groups.length && (m = line.match(/^>\s?(.*)$/))){ cur.desc = (cur.desc ? cur.desc + ' ' : '') + m[1].trim(); return; }
+    if (cur && !cur.groups.length && (m = line.match(/^columns?:\s*(.*)$/i))){ cur.cols = m[1].split(',').map(cleanLabel).filter(Boolean).slice(0, MAXX); return; }
     if (cur && !cur.groups.length && (m = line.match(/^labels:\s*(.*)$/i))){
       cur.labels = m[1].split(',').map(cleanLabel).filter((x, i, a) => x && a.indexOf(x) === i); return;
     }
@@ -376,7 +431,7 @@ function parseAll(text){
   return docs;
 }
 function importDocs(docs, asTpl){
-  docs.forEach(d => addList(d.name, d.groups, asTpl, d.labels));
+  docs.forEach(d => addList(d.name, d.groups, asTpl, d.labels, { desc:d.desc, cols:d.cols }));
 }
 
 /* ---------- optional: keep the lists as markdown files in a folder on the phone ----------
@@ -487,7 +542,7 @@ async function fdScan(){
     if (!text.trim()) continue;
     parseAll(text).forEach((d, k) => {
       const name = d.name === 'Imported' && !/^#\s/m.test(text) ? x.fname.replace(/\.[^.]+$/, '') : d.name;
-      docs.push({ key:x.kind + '/' + x.fname, extra:k > 0, kind:x.kind, file:x.fname, name, labels:d.labels, groups:d.groups });
+      docs.push({ key:x.kind + '/' + x.fname, extra:k > 0, kind:x.kind, file:x.fname, name, labels:d.labels, desc:d.desc, cols:d.cols, groups:d.groups });
     });
   }
   docs.sort((a, b) => a.name.localeCompare(b.name));
@@ -506,9 +561,9 @@ function fdApply(docs, merge){
     }
     if (id && lists.has(id)){
       const l = lists.get(id);
-      l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
+      l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.desc = s.desc || ''; l.cols = s.cols || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
     } else {
-      const nid = addList(s.name, s.groups, s.kind === DIR_TPL, s.labels);
+      const nid = addList(s.name, s.groups, s.kind === DIR_TPL, s.labels, { desc:s.desc, cols:s.cols });
       if (!merge) lists.get(nid).pos = i + 1;
       if (!s.extra) FD.files.set(nid, { dir:s.kind, file:s.file });
       seen.add(nid);
@@ -901,7 +956,7 @@ function newPanel(isTpl){
     const nm = name.value.trim();
     if (!nm){ name.focus(); return; }
     const t = sel && sel.value ? lists.get(sel.value) : null;
-    const id = addList(nm, t ? cloneGroups(t) : parseItems(paste.value), isTpl, t ? t.labels : []);
+    const id = addList(nm, t ? cloneGroups(t) : parseItems(paste.value), isTpl, t ? t.labels : [], t ? { desc:t.desc, cols:t.cols } : null);
     ui.newOpen = false; ui.newTplOpen = false; ui.newTpl = null;
     go(id);
   };
@@ -913,6 +968,10 @@ function newPanel(isTpl){
     h('button', { class:'btn primary', type:'button', onclick:make }, isTpl ? 'Create template' : 'Create list'));
 }
 
+function detsEl(l, vals){
+  const n = l.cols.length;
+  return h('span', { class:'dets', style:'--n:' + n + ';--w:' + (n === 1 ? '46%' : '66%') }, vals.map(v => h('span', null, v)));
+}
 function renderList(main, l){
   const isTpl = !!l.tpl;
   const edit = ui.edit;
@@ -930,6 +989,13 @@ function renderList(main, l){
     h('button', { class:'btn small' + (edit ? ' primary' : ''), type:'button', onclick:() => { ui.edit = !ui.edit; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
   ));
   main.append(banner());
+  if (edit){
+    main.append(h('input', { type:'text', value:l.desc || '', placeholder:'Description (shows under the title)', 'aria-label':'Description', style:'margin-bottom:12px',
+      onchange:e => mutate(l.id, x => { x.desc = e.target.value.trim(); }, { quiet:true }),
+      onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }));
+  } else if (l.desc){
+    main.append(h('p', { class:'desc' }, l.desc));
+  }
 
   if (isTpl){
     main.append(
@@ -948,7 +1014,8 @@ function renderList(main, l){
         'Reset checks'),
       h('button', { class:'btn', type:'button', disabled:!checked,
         onclick:() => mutate(l.id, x => x.groups.forEach(g => { g.items = g.items.filter(i => !i.d); }), { undo:'Deleted ' + checked + ' checked item' + (checked === 1 ? '' : 's') }) },
-        'Delete checked')));
+        'Delete checked'),
+      h('button', { class:'btn', type:'button', onclick:() => window.print() }, 'Print')));
   }
 
   const f = edit ? [] : [...ui.filter].filter(x => l.labels.includes(x));
@@ -967,11 +1034,12 @@ function renderList(main, l){
   }
   const showHeads = l.groups.length > 1 || l.groups.some(g => g.name);
 
+  if (!edit && usesDet(l) && visible.length) main.append(h('div', { class:'colhead' }, detsEl(l, l.cols)));
   visible.forEach(g => {
     const gi = l.groups.indexOf(g);
     const gDone = g.items.filter(i => i.d).length;
     const ck = l.id + ':' + g.id;
-    const isCollapsed = !edit && ui.collapsed.has(ck);
+    const isCollapsed = !edit && !ui.printing && ui.collapsed.has(ck);
     const box = h('section', { class:'group' });
 
     if (edit && showHeads){
@@ -994,7 +1062,7 @@ function renderList(main, l){
       box.append(h('div', { class:'ghead' },
         h('button', { class:'gname', type:'button', 'aria-expanded':String(!isCollapsed),
           onclick:() => { if (ui.collapsed.has(ck)) ui.collapsed.delete(ck); else ui.collapsed.add(ck); render(); } },
-          (isCollapsed ? '▸ ' : '▾ ') + (g.name || 'Items')),
+          (ui.printing ? '' : isCollapsed ? '▸ ' : '▾ ') + (g.name || 'Items')),
         h('span', { class:'cnt' }, gDone + '/' + g.items.length),
         gDone ? h('button', { class:'link', type:'button',
           onclick:() => mutate(l.id, x => findGroup(x, g.id).items.forEach(i => { i.d = false; }), { undo:'Unchecked ' + (g.name || 'section') }) }, 'Reset') : null));
@@ -1013,6 +1081,9 @@ function renderList(main, l){
               onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
             h('button', { class:'ib del', type:'button', 'aria-label':'Delete item',
               onclick:() => mutate(l.id, x => { const gg = findGroup(x, g.id); gg.items = gg.items.filter(q => q.id !== it.id); }, { undo:'Deleted “' + it.t + '”' }) }, '×')),
+            usesDet(l) ? h('div', { class:'etags' }, l.cols.map((c, k) => h('input', { type:'text', value:xVal(it, k), placeholder:c, 'aria-label':c,
+              onchange:e => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q){ q.x = q.x || []; while (q.x.length < x.cols.length) q.x.push(''); q.x[k] = e.target.value.trim(); } }, { quiet:true }),
+              onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }))) : null,
             l.labels.length ? h('div', { class:'etags' }, l.labels.map(nm => h('button', { class:'chip sm' + ((it.l || []).includes(nm) ? ' on' : ''), type:'button',
               'aria-pressed':String((it.l || []).includes(nm)),
               onclick:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); q.l = q.l || []; const k = q.l.indexOf(nm); if (k < 0) q.l.push(nm); else q.l.splice(k, 1); }) }, nm))) : null);
@@ -1021,7 +1092,8 @@ function renderList(main, l){
           h('input', { type:'checkbox', checked:it.d,
             onchange:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q) q.d = !q.d; }) }),
           h('span', { class:'box' }),
-          h('span', { class:'txt' }, it.t, it.l && it.l.length ? h('span', { class:'tags' }, it.l.map(x => h('span', { class:'tag' }, x))) : null)));
+          h('span', { class:'txt' }, it.t, it.l && it.l.length ? h('span', { class:'tags' }, it.l.map(x => h('span', { class:'tag' }, x))) : null),
+          usesDet(l) && l.cols.some((c, k) => xVal(it, k)) ? detsEl(l, l.cols.map((c, k) => xVal(it, k))) : null));
       })));
       if (edit && !g.items.length) box.append(h('p', { class:'note' }, 'No items in this section.'));
     }
@@ -1062,10 +1134,32 @@ function renderList(main, l){
             } else armConfirm('lbl:' + nm);
           } }, ui.confirm === 'lbl:' + nm ? '?' : '×'))),
       h('div', { class:'addrow' }, lblNew, h('button', { class:'btn', type:'button', onclick:addLbl }, 'Add label')));
-    main.append(h('div', { class:'footer' }, lblBox,
+    const colNew = h('input', { type:'text', placeholder:'New column (Qty, Store, Price...)', 'aria-label':'New column name' });
+    const addCol = () => {
+      const v = cleanLabel(colNew.value); if (!v) return;
+      if (l.cols.length >= MAXX){ toast('Up to 3 columns: the item plus 2 more.'); return; }
+      if (l.cols.some(x => x.toLowerCase() === v.toLowerCase())){ toast('That column already exists.'); return; }
+      mutate(l.id, x => { x.cols.push(v); });
+    };
+    colNew.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addCol(); } });
+    const colBox = h('div', { class:'lblbox' }, h('h2', { class:'sec' }, 'Columns'),
+      h('p', { class:'note', style:'margin:0' }, 'Column 1 is the item itself. You can add up to 2 more, like Qty or Store.'),
+      l.cols.map((nm, i) => h('div', { class:'addrow' },
+        h('input', { type:'text', value:nm, 'aria-label':'Column name',
+          onchange:e => { const v = cleanLabel(e.target.value); if (!v){ e.target.value = nm; return; } mutate(l.id, x => { x.cols[i] = v; }); },
+          onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+        h('button', { class:'ib del', type:'button', 'aria-label':'Delete column ' + nm,
+          onclick:() => {
+            if (ui.confirm === 'col:' + i){
+              clearConfirm();
+              mutate(l.id, x => { x.cols.splice(i, 1); x.groups.forEach(g => g.items.forEach(it => { if (it.x) it.x.splice(i, 1); })); }, { undo:'Deleted column ' + nm });
+            } else armConfirm('col:' + i);
+          } }, ui.confirm === 'col:' + i ? '?' : '×'))),
+      l.cols.length < MAXX ? h('div', { class:'addrow' }, colNew, h('button', { class:'btn', type:'button', onclick:addCol }, 'Add column')) : null);
+    main.append(h('div', { class:'footer' }, colBox, lblBox,
       h('div', { class:'addrow' }, secName, h('button', { class:'btn', type:'button', onclick:addSec }, 'Add section')),
       isTpl ? null : h('button', { class:'btn', type:'button',
-        onclick:() => { addList(l.name, cloneGroups(l), true, l.labels); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
+        onclick:() => { addList(l.name, cloneGroups(l), true, l.labels, { desc:l.desc, cols:l.cols }); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
       h('button', { class:'btn', type:'button', onclick:() => { ui.exportText = exportText(l); render(); } }, 'Copy as text'),
       ui.exportText != null ? exportPanel() : null,
       h('button', { class:'btn danger', type:'button',
@@ -1081,7 +1175,7 @@ function exportText(l){
   const out = [];
   l.groups.forEach(g => {
     if (g.name) out.push(g.name + ':');
-    g.items.forEach(i => out.push((i.d ? '[x] ' : '[ ] ') + i.t));
+    g.items.forEach(i => out.push((i.d ? '[x] ' : '[ ] ') + i.t + xMd(i, l)));
     out.push('');
   });
   return out.join('\n').trim();
@@ -1111,6 +1205,12 @@ function renderAddTags(l){
 function syncAddBar(l){
   const bar = $('#addbar'), sel = $('#addgroup');
   bar.hidden = false; renderAddTags(l);
+  bar.classList.toggle('multi', usesDet(l));
+  const ds = $('#adddets'), dk = l.id + '|' + l.cols.join('|');
+  if (ds.dataset.k !== dk){
+    ds.dataset.k = dk;
+    ds.replaceChildren(...l.cols.map(c => h('input', { type:'text', placeholder:c, autocomplete:'off', 'aria-label':c })));
+  }
   const sig = l.id + '|' + l.groups.map(g => g.id + ':' + g.name).join('|');
   if (sig !== barSig){
     barSig = sig;
@@ -1128,16 +1228,23 @@ $('#addbar').addEventListener('submit', e => {
   const id = currentId(), input = $('#addtext');
   const text = input.value.trim();
   if (!id || !text) return;
-  const sel = $('#addgroup');
+  const sel = $('#addgroup'), dets = [...$('#adddets').querySelectorAll('input')];
+  let text2 = text, x = dets.map(d => d.value.trim());
+  if (!x.some(Boolean) && text.indexOf(' | ') > 0){
+    const p = text.split(' | ').map(v => v.trim()); text2 = p[0]; x = p.slice(1, 1 + MAXX);
+  }
   mutate(id, l => {
     if (!l.groups.length) l.groups.push(makeGroup('', []));
     const g = findGroup(l, sel.value) || l.groups[0];
-    g.items.push({ id:uid(), t:text, d:false, l:l.labels.filter(x => ui.addLabels.has(x)) });
+    g.items.push({ id:uid(), t:text2, d:false, x:x.slice(0, l.cols.length), l:l.labels.filter(x => ui.addLabels.has(x)) });
     ui.lastGroup[id] = g.id;
   });
-  input.value = '';
+  input.value = ''; dets.forEach(d => { d.value = ''; });
   input.focus();
 });
+
+window.addEventListener('beforeprint', () => { if (currentId()){ ui.printing = true; render(); } });
+window.addEventListener('afterprint', () => { if (ui.printing){ ui.printing = false; render(); } });
 
 /* ---------- start ---------- */
 async function init(){
