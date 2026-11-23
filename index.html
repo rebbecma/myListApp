@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Checklists</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1b; --muted:#6b6a66; --line:#e4e2dc;
+  --accent:#2f6f5e; --accent-ink:#ffffff; --done:#9a9892; --danger:#b3392f; --bar:#e4e2dc;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#161614; --card:#201f1d; --ink:#efeee9; --muted:#9a988f; --line:#33322e;
+    --accent:#5fb59d; --accent-ink:#0f1d19; --done:#76746d; --danger:#e0766c; --bar:#33322e;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+#app{max-width:640px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+#main{flex:1;padding:max(14px,env(safe-area-inset-top)) 14px 90px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.top{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+.top h1{flex:1;margin:0;font-size:24px;line-height:1.2;min-width:0;overflow-wrap:anywhere}
+.top input.title{flex:1;min-width:0;font-size:20px;font-weight:600}
+.btn{
+  border:1px solid var(--line);background:var(--card);border-radius:10px;
+  padding:9px 14px;min-height:40px;font-weight:500;
+}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.btn.small{padding:4px 10px;min-height:32px;font-size:14px}
+.btn:disabled{opacity:.4;cursor:default}
+.link{background:none;border:0;color:var(--accent);padding:6px 4px;font-size:14px}
+.note{color:var(--muted);font-size:14px}
+.banner{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);
+  border-radius:8px;padding:8px 12px;margin:0 0 12px;font-size:14px;color:var(--muted)
+}
+input[type=text],textarea,select{
+  width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:9px 12px;min-height:40px
+}
+textarea{min-height:110px;resize:vertical}
+.cards{display:grid;gap:10px}
+.card{
+  display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:14px 16px
+}
+.card .name{font-weight:600;font-size:17px;overflow-wrap:anywhere}
+.card .meta{color:var(--muted);font-size:14px;margin-top:2px}
+.card.tpl{border-style:dashed}
+.bar{height:6px;background:var(--bar);border-radius:99px;overflow:hidden;margin-top:10px}
+.bar > i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.sec{
+  margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)
+}
+.sechead{display:flex;align-items:center;justify-content:space-between;margin:24px 0 8px}
+.sechead.first{margin-top:6px}
+.empty{padding:6px 0 4px;display:grid;gap:10px;justify-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px;display:grid;gap:10px}
+.panel label{font-size:14px;color:var(--muted)}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 6px}
+.group{margin-top:16px}
+.ghead{display:flex;align-items:center;gap:6px;padding:4px 2px}
+.ghead .gname{
+  flex:1;min-width:0;background:none;border:0;text-align:left;padding:6px 2px;
+  font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);
+  overflow-wrap:anywhere
+}
+.ghead .cnt{font-size:13px;color:var(--muted)}
+.ghead input[type=text]{font-weight:600}
+ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+li{border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.row{display:flex;align-items:center;gap:12px;padding:10px 14px;min-height:50px;cursor:pointer}
+.row input{position:absolute;opacity:0;width:1px;height:1px}
+.box{
+  flex:none;width:26px;height:26px;border-radius:8px;border:2px solid var(--muted);
+  display:grid;place-items:center
+}
+.row input:checked + .box{background:var(--accent);border-color:var(--accent)}
+.row input:checked + .box::after{
+  content:"";width:6px;height:12px;border:solid var(--accent-ink);border-width:0 3px 3px 0;
+  transform:rotate(45deg) translate(-1px,-1px)
+}
+.row input:focus-visible + .box{outline:3px solid var(--accent);outline-offset:2px}
+.txt{flex:1;min-width:0;overflow-wrap:anywhere}
+.done .txt{color:var(--done);text-decoration:line-through}
+.erow{display:flex;align-items:center;gap:6px;padding:6px 8px}
+.ib{
+  flex:none;width:34px;height:34px;border-radius:8px;border:1px solid var(--line);
+  background:var(--card);display:grid;place-items:center;font-size:15px;padding:0
+}
+.ib:disabled{opacity:.3}
+.ib.del{color:var(--danger)}
+.footer{margin-top:22px;display:grid;gap:10px}
+.addrow{display:flex;gap:8px}
+#addbar{
+  position:sticky;bottom:0;display:flex;gap:8px;padding:10px 14px max(10px,env(safe-area-inset-bottom));
+  background:var(--bg);border-top:1px solid var(--line)
+}
+#addbar[hidden]{display:none}
+#addbar{flex-wrap:wrap}
+#addtags{flex-basis:100%;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+#addtags[hidden]{display:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px;align-items:center}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 13px;font-size:14px;min-height:34px}
+.chip.sm{padding:2px 11px;font-size:13px;min-height:30px}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 8px}
+.etags{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 10px}
+.lblbox{display:grid;gap:8px}
+#addgroup{width:38%;min-width:0;flex:none}
+#addgroup[hidden]{display:none}
+#addtext{flex:1;min-width:0}
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));
+  background:var(--ink);color:var(--bg);border-radius:10px;padding:10px 14px;display:flex;gap:14px;
+  align-items:center;max-width:92vw;z-index:5;font-size:15px
+}
+#toast[hidden]{display:none}
+#toast button{background:none;border:0;color:var(--accent);font-weight:700;padding:0 2px}
+@media (prefers-color-scheme: dark){ #toast button{color:#0f6b55} }
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="main"></main>
+  <form id="addbar" hidden>
+    <div id="addtags" hidden></div>
+    <select id="addgroup" aria-label="Section" hidden></select>
+    <input id="addtext" type="text" placeholder="Add an item" autocomplete="off" enterkeyhint="done" aria-label="New item">
+    <button class="btn primary" type="submit">Add</button>
+  </form>
+</div>
+<div id="toast" hidden role="status"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- tiny helpers ---------- */
+const $ = s => document.querySelector(s);
+function h(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs){
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === 'class') e.className = v;
+    else if (k.slice(0,2) === 'on') e.addEventListener(k.slice(2), v);
+    else if (k === 'value') e.value = v;
+    else if (v === true) e.setAttribute(k, '');
+    else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()){
+    if (c == null || c === false) continue;
+    e.append(c);
+  }
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
+
+/* ---------- state ---------- */
+const ui = {
+  edit:false, collapsed:new Set(), confirm:null, confirmT:null,
+  newOpen:false, newTplOpen:false, newTpl:null, keepNew:false,
+  exportText:null, lastGroup:{}, filter:new Set(), addLabels:new Set(),
+  storageOpen:false, importOpen:false, importText:'', bkText:null, pendingFolder:null
+};
+let mode = 'loading';            // loading | cloud | local
+let col = null, loaded = false, slow = false, slowT = null, errMsg = '';
+const lists = new Map();         // docId -> list (templates have tpl:true)
+const dirty = new Map();         // docId -> {busy, again}
+const LOCAL_KEY = 'checklists.v1';
+
+/* ---------- data shape ---------- */
+function normalize(id, d){
+  const groups = Array.isArray(d.groups) ? d.groups : [];
+  return {
+    id,
+    name: String(d.name || 'Untitled'),
+    pos: Number(d.pos) || 0,
+    tpl: !!d.tpl,
+    labels: (Array.isArray(d.labels) ? d.labels : []).map(String),
+    groups: groups.map(g => ({
+      id: String(g.id || uid()),
+      name: String(g.name || ''),
+      items: (Array.isArray(g.items) ? g.items : []).map(it => ({
+        id: String(it.id || uid()), t: String(it.t || ''), d: !!it.d,
+        l: (Array.isArray(it.l) ? it.l : []).map(String)
+      }))
+    }))
+  };
+}
+const toDoc = l => ({ name:l.name, pos:l.pos, tpl:!!l.tpl, labels:l.labels || [], groups:l.groups });
+const cleanLabel = v => String(v).replace(/[#,\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
+const encLabel = n => n.replace(/\s+/g, '_');
+const stats = l => {
+  let total = 0, done = 0;
+  l.groups.forEach(g => g.items.forEach(i => { total++; if (i.d) done++; }));
+  return { total, done };
+};
+const sortedLists = () => [...lists.values()].sort((a, b) => (a.pos - b.pos) || a.name.localeCompare(b.name));
+const realLists = () => sortedLists().filter(x => !x.tpl);
+const templates = () => sortedLists().filter(x => x.tpl);
+
+/* ---------- storage ---------- */
+function loadLocal(){
+  try{
+    const arr = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+    arr.forEach(x => lists.set(x.id, normalize(x.id, x)));
+  }catch(e){}
+}
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify([...lists.values()])); }catch(e){}
+}
+function persist(id){
+  if (mode === 'local'){ saveLocal(); scheduleFileWrite(id); return; }
+  if (mode !== 'cloud') return;
+  let st = dirty.get(id);
+  if (!st){ st = { busy:false, again:false }; dirty.set(id, st); }
+  if (st.busy){ st.again = true; return; }
+  pump(id);
+}
+async function pump(id){
+  const st = dirty.get(id);
+  st.busy = true;
+  try{
+    do{
+      st.again = false;
+      const l = lists.get(id);
+      if (l) await col.doc(id).set(toDoc(l)); else await col.doc(id).delete();
+    } while (st.again);
+  }catch(e){
+    toast('Could not save that change. Check your connection.');
+  }
+  dirty.delete(id);
+}
+function subscribe(){
+  slowT = setTimeout(() => { if (!loaded){ slow = true; render(); } }, 10000);
+  col.onSnapshot(snap => {
+    loaded = true; slow = false; errMsg = ''; clearTimeout(slowT);
+    const seen = new Set();
+    snap.docs.forEach(d => {
+      if (d.id.indexOf('list-') !== 0) return;
+      seen.add(d.id);
+      if (dirty.has(d.id)) return;
+      const data = d.data();
+      if (data) lists.set(d.id, normalize(d.id, data));
+    });
+    [...lists.keys()].forEach(k => { if (!seen.has(k) && !dirty.has(k)) lists.delete(k); });
+    softRender();
+  }, e => {
+    errMsg = 'Lost the connection to your saved lists. Reopen the page to retry.';
+    render();
+  });
+}
+
+/* ---------- mutations ---------- */
+function mutate(id, fn, opts){
+  opts = opts || {};
+  const l = lists.get(id); if (!l) return;
+  const before = opts.undo ? JSON.stringify(l) : null;
+  fn(l);
+  persist(id);
+  if (opts.undo){
+    toast(opts.undo, () => { lists.set(id, normalize(id, JSON.parse(before))); persist(id); render(); });
+  }
+  if (!opts.quiet) render();
+}
+function findGroup(l, gid){ return l.groups.find(g => g.id === gid); }
+function findItem(g, iid){ return g && g.items.find(i => i.id === iid); }
+function swap(arr, i, j){ if (j < 0 || j >= arr.length) return; const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+function makeGroup(name, items){
+  return { id:uid(), name, items:(items || []).map(t => ({ id:uid(), t, d:false, l:[] })) };
+}
+function cloneGroups(src){
+  return src.groups.map(g => ({ id:uid(), name:g.name, items:g.items.map(i => ({ id:uid(), t:i.t, d:false, l:(i.l || []).slice() })) }));
+}
+function addList(name, groups, isTpl, labels){
+  const id = 'list-' + uid();
+  const pos = Math.max(0, ...[...lists.values()].map(x => x.pos)) + 1;
+  lists.set(id, { id, name, pos, tpl:!!isTpl, labels:(labels || []).slice(), groups });
+  persist(id);
+  return id;
+}
+function parseItems(text){
+  const groups = []; let cur = null;
+  text.split(/\r?\n/).forEach(raw => {
+    const line = raw.trim().replace(/^(?:[-*•]\s+|\[[ xX]?\]\s*)+/, '').trim();
+    if (!line) return;
+    if (line.slice(-1) === ':'){
+      cur = makeGroup(line.slice(0, -1).trim(), []); groups.push(cur);
+    } else {
+      if (!cur){ cur = makeGroup('', []); groups.push(cur); }
+      cur.items.push({ id:uid(), t:line, d:false });
+    }
+  });
+  return groups.length ? groups : [makeGroup('', [])];
+}
+function dateLabel(){
+  try{ return new Date().toLocaleDateString(undefined, { month:'short', day:'numeric' }); }
+  catch(e){ return ''; }
+}
+
+function useTemplate(t){
+  ui.newOpen = true; ui.newTpl = t.id; ui.keepNew = true;
+  go('');
+}
+
+/* ---------- markdown: all lists in one file ---------- */
+const mdJoin = out => out.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+function docMd(l){
+  const out = ['# ' + l.name];
+  if (l.labels && l.labels.length) out.push('labels: ' + l.labels.join(', '));
+  out.push('');
+  l.groups.forEach((g, gi) => {
+    const nm = g.name || (gi ? 'Section ' + (gi + 1) : '');
+    if (nm) out.push('## ' + nm);
+    g.items.forEach(i => out.push('- [' + (i.d ? 'x' : ' ') + '] ' + i.t + (i.l && i.l.length ? ' ' + i.l.map(x => '#' + encLabel(x)).join(' ') : '')));
+    out.push('');
+  });
+  return out;
+}
+function serializeAll(tpl){
+  const out = [];
+  (tpl ? templates() : realLists()).forEach(l => out.push(...docMd(l)));
+  return mdJoin(out);
+}
+const serializeOne = l => mdJoin(docMd(l));
+function parseAll(text){
+  const docs = []; let cur = null, grp = null;
+  const newDoc = name => { cur = { name, tpl:false, labels:[], groups:[] }; grp = null; docs.push(cur); };
+  const add = (t, d) => {
+    t = t.trim(); if (!t) return;
+    if (!cur) newDoc('Imported');
+    if (!grp){ grp = makeGroup('', []); cur.groups.push(grp); }
+    let tags = []; const mt = t.match(/^(.*?\S)((?:\s+#[^\s#]+)+)$/);
+    if (mt){
+      t = mt[1];
+      tags = mt[2].trim().split(/\s+/).map(x => x.slice(1)).map(tok => cur.labels.find(n => encLabel(n) === tok) || tok.replace(/_/g, ' '));
+      tags.forEach(n => { if (!cur.labels.includes(n)) cur.labels.push(n); });
+    }
+    grp.items.push({ id:uid(), t, d, l:tags });
+  };
+  String(text).split(/\r?\n/).forEach(raw => {
+    const line = raw.trim(); let m;
+    if (!line || /^(-{3,}|\*{3,}|_{3,})$/.test(line)) return;
+    if ((m = line.match(/^#\s+(.*)$/))){ newDoc(m[1].trim() || 'Untitled'); return; }
+    if (/^<!--.*-->$/.test(line)) return;
+    if (cur && !cur.groups.length && (m = line.match(/^labels:\s*(.*)$/i))){
+      cur.labels = m[1].split(',').map(cleanLabel).filter((x, i, a) => x && a.indexOf(x) === i); return;
+    }
+    if ((m = line.match(/^#{2,6}\s+(.*)$/))){
+      if (!cur) newDoc('Imported');
+      grp = makeGroup(m[1].trim(), []); cur.groups.push(grp); return;
+    }
+    if ((m = line.match(/^[-*+]\s+\[([ xX])\]\s*(.*)$/))){ add(m[2], /x/i.test(m[1])); return; }
+    if ((m = line.match(/^\[([ xX])\]\s*(.*)$/))){ add(m[2], /x/i.test(m[1])); return; }
+    if ((m = line.match(/^[-*+•]\s+(.*)$/))){ add(m[1], false); return; }
+    add(line, false);
+  });
+  docs.forEach(d => { if (!d.groups.length) d.groups.push(makeGroup('', [])); });
+  return docs;
+}
+function importDocs(docs, asTpl){
+  docs.forEach(d => addList(d.name, d.groups, asTpl, d.labels));
+}
+
+/* ---------- optional: keep the lists as markdown files in a folder on the phone ----------
+   Folder layout. Change these names here if you want different ones:
+     myLists/lists/<list name>.md        one file per list
+     myLists/templates/<name>.md         one file per template
+   The browser makes you grant access to the myLists folder once; everything below it is automatic. */
+const ROOT_NAME = 'myLists';
+const DIR_LISTS = 'lists';
+const DIR_TPL = 'templates';
+const FD = { root:null, state:'none', files:new Map(), sig:'', timer:null, queue:new Set(), busy:false, again:false, suppress:false, pending:false };
+const fsSupported = () => typeof window.showDirectoryPicker === 'function';
+function idb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('checklists-fs', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function idbOp(mode_, fn){
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const q = fn(db.transaction('kv', mode_).objectStore('kv'));
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+  });
+}
+async function rememberRoot(){ try{ await idbOp('readwrite', st => st.put(FD.root, 'root')); }catch(e){} }
+const kindOf = l => l.tpl ? DIR_TPL : DIR_LISTS;
+const safeName = n => (String(n).replace(/[\\\/:*?"<>|\u0000-\u001f]/g, '-').replace(/^\.+/, '').trim().slice(0, 100)) || 'Untitled';
+function uniqueFile(id, dir, name){
+  const taken = new Set();
+  FD.files.forEach((f, other) => { if (other !== id && f.dir === dir) taken.add(f.file.toLowerCase()); });
+  const base = safeName(name); let file = base + '.md', n = 2;
+  while (taken.has(file.toLowerCase())) file = base + ' (' + (n++) + ').md';
+  return file;
+}
+async function fdRemove(f){
+  try{
+    const dir = await FD.root.getDirectoryHandle(f.dir);
+    try{ await dir.removeEntry(f.file); }
+    catch(e){
+      const fh = await dir.getFileHandle(f.file);
+      const w = await fh.createWritable(); await w.write(''); await w.close();
+      toast('Could not delete ' + f.file + ', so I emptied it. Remove it in your Files app.');
+    }
+  }catch(e){}
+}
+async function fdSync(id){
+  const l = lists.get(id), old = FD.files.get(id);
+  if (!l){ if (old){ await fdRemove(old); FD.files.delete(id); } return; }
+  const want = { dir:kindOf(l), file:uniqueFile(id, kindOf(l), l.name) };
+  const dir = await FD.root.getDirectoryHandle(want.dir, { create:true });
+  const fh = await dir.getFileHandle(want.file, { create:true });
+  const w = await fh.createWritable();
+  await w.write(serializeOne(l));
+  await w.close();
+  if (old && (old.dir !== want.dir || old.file !== want.file)) await fdRemove(old);
+  FD.files.set(id, want);
+}
+function fdFlushSoon(){
+  clearTimeout(FD.timer);
+  FD.timer = setTimeout(() => { FD.timer = null; fdFlush(); }, 400);
+}
+function scheduleFileWrite(id){
+  if (FD.suppress) return;
+  if (FD.state === 'needs-permission'){ FD.pending = true; FD.queue.add(id); return; }
+  if (FD.state !== 'linked') return;
+  FD.queue.add(id); fdFlushSoon();
+}
+async function fdFlush(){
+  if (FD.state !== 'linked') return;
+  if (FD.busy){ FD.again = true; return; }
+  FD.busy = true;
+  let ids = [];
+  try{
+    do{
+      FD.again = false;
+      ids = [...FD.queue]; FD.queue.clear();
+      for (const id of ids) await fdSync(id);
+      ids = [];
+    } while (FD.again || FD.queue.size);
+    FD.sig = (await fdList()).sig;
+  }catch(e){
+    ids.forEach(i => FD.queue.add(i));
+    FD.state = 'needs-permission'; FD.pending = true; FD.busy = false;
+    toast('Could not save to the folder. Open Storage and tap Reconnect.');
+    render(); return;
+  }
+  FD.busy = false;
+}
+async function fdList(){
+  const out = [];
+  for (const kind of [DIR_LISTS, DIR_TPL]){
+    let dir; try{ dir = await FD.root.getDirectoryHandle(kind); }catch(e){ continue; }
+    for await (const [fname, h] of dir.entries()){
+      if (h.kind !== 'file' || !/\.(md|markdown|txt)$/i.test(fname)) continue;
+      out.push({ kind, fname, f:await h.getFile() });
+    }
+  }
+  const sig = out.map(x => x.kind + '/' + x.fname + ':' + x.f.lastModified + ':' + x.f.size).sort().join('|');
+  return { out, sig };
+}
+async function fdScan(){
+  const { out, sig } = await fdList();
+  const docs = [];
+  for (const x of out){
+    const text = await x.f.text();
+    if (!text.trim()) continue;
+    parseAll(text).forEach((d, k) => {
+      const name = d.name === 'Imported' && !/^#\s/m.test(text) ? x.fname.replace(/\.[^.]+$/, '') : d.name;
+      docs.push({ key:x.kind + '/' + x.fname, extra:k > 0, kind:x.kind, file:x.fname, name, labels:d.labels, groups:d.groups });
+    });
+  }
+  docs.sort((a, b) => a.name.localeCompare(b.name));
+  return { docs, sig };
+}
+function fdApply(docs, merge){
+  FD.suppress = true;
+  const byKey = new Map();
+  FD.files.forEach((f, id) => byKey.set(f.dir + '/' + f.file, id));
+  const seen = new Set();
+  docs.forEach((s, i) => {
+    let id = !merge && !s.extra ? byKey.get(s.key) : null;
+    if (merge && !s.extra){
+      const m = [...lists.values()].find(o => !FD.files.has(o.id) && o.name === s.name && !!o.tpl === (s.kind === DIR_TPL));
+      if (m){ FD.files.set(m.id, { dir:s.kind, file:s.file }); FD.queue.add(m.id); seen.add(m.id); return; }
+    }
+    if (id && lists.has(id)){
+      const l = lists.get(id);
+      l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
+    } else {
+      const nid = addList(s.name, s.groups, s.kind === DIR_TPL, s.labels);
+      if (!merge) lists.get(nid).pos = i + 1;
+      if (!s.extra) FD.files.set(nid, { dir:s.kind, file:s.file });
+      seen.add(nid);
+    }
+  });
+  if (!merge) [...lists.keys()].forEach(id => { if (!seen.has(id)){ lists.delete(id); FD.files.delete(id); } });
+  FD.suppress = false;
+  saveLocal();
+  lists.forEach((l, id) => { if (!FD.files.has(id)) FD.queue.add(id); });
+  if (FD.queue.size) fdFlushSoon();
+}
+async function fdStart(){
+  FD.state = 'linked';
+  await FD.root.getDirectoryHandle(DIR_LISTS, { create:true });
+  await FD.root.getDirectoryHandle(DIR_TPL, { create:true });
+  const { docs, sig } = await fdScan();
+  FD.sig = sig;
+  if (docs.length) fdApply(docs, false);
+  else { lists.forEach((l, id) => FD.queue.add(id)); fdFlushSoon(); }
+  await fdSettings();
+}
+async function fdInit(){
+  if (!fsSupported()) return;
+  try{
+    const root = await idbOp('readonly', st => st.get('root'));
+    if (!root) return;
+    FD.root = root;
+    if ((await root.queryPermission({ mode:'readwrite' })) === 'granted') await fdStart();
+    else FD.state = 'needs-permission';
+  }catch(e){ FD.state = 'none'; }
+}
+async function fdReconnect(){
+  try{
+    if ((await FD.root.requestPermission({ mode:'readwrite' })) !== 'granted'){ toast('Access to the folder was not granted.'); return; }
+    if (FD.pending){ FD.state = 'linked'; FD.pending = false; fdFlushSoon(); }
+    else await fdStart();
+    render();
+  }catch(e){ toast('Could not reopen the folder.'); }
+}
+async function fdLink(){
+  try{
+    const hnd = await window.showDirectoryPicker({ id:'mytasks', mode:'readwrite', startIn:'documents' });
+    if (hnd.name.toLowerCase() !== ROOT_NAME.toLowerCase()){
+      toast('Pick the folder named ' + ROOT_NAME + '. Create it first if it does not exist.'); return;
+    }
+    FD.root = hnd;
+    await hnd.getDirectoryHandle(DIR_LISTS, { create:true });
+    await hnd.getDirectoryHandle(DIR_TPL, { create:true });
+    const { docs, sig } = await fdScan();
+    if (docs.length && lists.size){ ui.pendingFolder = { hnd, docs, sig }; render(); return; }
+    FD.state = 'linked'; FD.sig = sig;
+    if (docs.length) fdApply(docs, false);
+    else { lists.forEach((l, id) => FD.queue.add(id)); fdFlushSoon(); }
+    await rememberRoot(); await fdSettings();
+    toast('Saving to ' + ROOT_NAME);
+  }catch(e){ if (!e || e.name !== 'AbortError') toast('Could not open that folder.'); }
+  render();
+}
+async function fdAdopt(how){
+  const p = ui.pendingFolder; ui.pendingFolder = null;
+  FD.root = p.hnd; FD.state = 'linked'; FD.sig = p.sig;
+  fdApply(p.docs, how === 'merge');
+  await rememberRoot(); await fdSettings();
+  toast(how === 'merge' ? 'Merged with the folder' : 'Loaded from the folder'); render();
+}
+async function fdUnlink(){
+  FD.root = null; FD.state = 'none'; FD.pending = false; FD.files.clear(); FD.queue.clear(); clearTimeout(FD.timer);
+  try{ await idbOp('readwrite', st => st.delete('root')); }catch(e){}
+  toast('Unlinked. Your lists stay here and the folder is kept.'); render();
+}
+async function fdCheck(){
+  if (FD.state !== 'linked' || FD.busy || FD.timer || FD.queue.size) return;
+  try{
+    if ((await fdList()).sig === FD.sig) return;
+    const { docs, sig } = await fdScan();
+    FD.sig = sig;
+    if (!docs.length) return;
+    fdApply(docs, false);
+    softRender(); toast('Picked up changes from your folder');
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) fdCheck(); });
+
+/* ---------- settings: favorites and recently opened (kept in myLists/settings.md when linked) ---------- */
+const SETTINGS_FILE = 'settings.md';
+const settings = { fav:[], recent:[] };
+const keyOf = l => kindOf(l) + '/' + l.name;
+const byKey = k => [...lists.values()].find(l => keyOf(l) === k);
+function loadSettingsLocal(){
+  try{
+    const j = JSON.parse(localStorage.getItem('checklists.settings') || '{}');
+    settings.fav = Array.isArray(j.fav) ? j.fav : []; settings.recent = Array.isArray(j.recent) ? j.recent : [];
+  }catch(e){}
+}
+function settingsMd(){
+  return mdJoin(['# Settings', '', '## Favorites', ...settings.fav.map(k => '- ' + k), '', '## Recent', ...settings.recent.map(k => '- ' + k)]);
+}
+function parseSettings(text){
+  const out = { fav:[], recent:[] }; let cur = null;
+  String(text).split(/\r?\n/).forEach(raw => {
+    const line = raw.trim(); let m;
+    if ((m = line.match(/^##\s+(.*)$/))){ const n = m[1].toLowerCase(); cur = n.indexOf('fav') === 0 ? out.fav : n.indexOf('recent') === 0 ? out.recent : null; return; }
+    if (cur && (m = line.match(/^[-*+]\s+(.*)$/))) cur.push(m[1].trim());
+  });
+  return out;
+}
+let settingsTimer = null;
+function saveSettings(){
+  settings.fav = settings.fav.filter((k, i, a) => a.indexOf(k) === i);
+  try{ localStorage.setItem('checklists.settings', JSON.stringify(settings)); }catch(e){}
+  if (mode === 'local' && FD.state === 'linked'){
+    clearTimeout(settingsTimer);
+    settingsTimer = setTimeout(writeSettingsFile, 500);
+  }
+}
+async function writeSettingsFile(){
+  try{
+    const fh = await FD.root.getFileHandle(SETTINGS_FILE, { create:true });
+    const w = await fh.createWritable(); await w.write(settingsMd()); await w.close();
+  }catch(e){}
+}
+async function fdSettings(){
+  try{
+    const fh = await FD.root.getFileHandle(SETTINGS_FILE);
+    const t = await (await fh.getFile()).text();
+    if (t.trim()){
+      const r = parseSettings(t); settings.fav = r.fav; settings.recent = r.recent;
+      try{ localStorage.setItem('checklists.settings', JSON.stringify(settings)); }catch(e){}
+      return;
+    }
+  }catch(e){}
+  if (settings.fav.length || settings.recent.length) writeSettingsFile();
+}
+const isFav = l => settings.fav.includes(keyOf(l));
+function toggleFav(l){
+  const k = keyOf(l), i = settings.fav.indexOf(k);
+  if (i < 0) settings.fav.push(k); else settings.fav.splice(i, 1);
+  saveSettings(); render();
+}
+function touchRecent(l){
+  const k = keyOf(l);
+  if (settings.recent[0] === k) return;
+  settings.recent = [k, ...settings.recent.filter(x => x !== k)].slice(0, 8);
+  saveSettings();
+}
+function renameKey(from, to){
+  if (from === to) return;
+  settings.fav = settings.fav.map(k => k === from ? to : k);
+  settings.recent = settings.recent.map(k => k === from ? to : k);
+  saveSettings();
+}
+
+/* ---------- backup helpers ---------- */
+async function copyAll(tpl){
+  const text = serializeAll(tpl);
+  try{ await navigator.clipboard.writeText(text); toast('Copied ' + (tpl ? 'templates' : 'lists') + ' as markdown'); }
+  catch(e){ ui.bkText = text; render(); }
+}
+function downloadAll(tpl){
+  try{
+    const url = URL.createObjectURL(new Blob([serializeAll(tpl)], { type:'text/markdown' }));
+    const a = h('a', { href:url, download:tpl ? 'templates.md' : 'lists.md' });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }catch(e){ toast('Download is not available here. Use Copy instead.'); }
+}
+
+/* ---------- toast ---------- */
+let toastT = null;
+function hideToast(){ $('#toast').hidden = true; }
+function toast(msg, undoFn){
+  const t = $('#toast');
+  t.replaceChildren(h('span', null, msg));
+  if (undoFn) t.append(h('button', { type:'button', onclick:() => { undoFn(); hideToast(); } }, 'Undo'));
+  t.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(hideToast, 6000);
+}
+
+/* ---------- two-tap confirm ---------- */
+function armConfirm(key){
+  ui.confirm = key;
+  clearTimeout(ui.confirmT);
+  ui.confirmT = setTimeout(() => { ui.confirm = null; render(); }, 4000);
+  render();
+}
+function clearConfirm(){ ui.confirm = null; clearTimeout(ui.confirmT); }
+
+/* ---------- routing ---------- */
+function currentId(){
+  const x = location.hash.replace(/^#/, '');
+  return x.indexOf('list-') === 0 ? x : null;
+}
+function go(id){ location.hash = id || ''; }
+window.addEventListener('hashchange', () => {
+  ui.edit = false; ui.exportText = null; clearConfirm();
+  if (ui.keepNew) ui.keepNew = false; else { ui.newOpen = false; ui.newTpl = null; }
+  ui.newTplOpen = false; ui.filter = new Set(); ui.addLabels = new Set();
+  render(); window.scrollTo(0, 0);
+});
+
+/* ---------- rendering ---------- */
+function banner(){
+  if (errMsg) return h('div', { class:'banner' }, errMsg);
+  if (mode === 'local' && FD.state === 'needs-permission')
+    return h('div', { class:'banner' }, ROOT_NAME + ' needs access again. ', h('button', { class:'link', type:'button', onclick:fdReconnect }, 'Reconnect'));
+  if (mode === 'local' && FD.state === 'none') return h('div', { class:'banner' }, 'Not connected to Claude storage, so changes save in this browser only.');
+  if (mode === 'cloud' && !loaded && slow) return h('div', { class:'banner' }, 'Still trying to reach your saved lists...');
+  return document.createDocumentFragment();
+}
+function softRender(){
+  const a = document.activeElement;
+  if (a && $('#main').contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+  render();
+}
+function render(){
+  const main = $('#main');
+  main.replaceChildren();
+  if (mode === 'loading'){
+    main.append(h('p', { class:'note' }, 'Loading your lists...'));
+    $('#addbar').hidden = true; return;
+  }
+  const id = currentId();
+  if (id){
+    const l = lists.get(id);
+    if (!l){
+      main.append(banner(),
+        h('p', { class:'note' }, loaded || mode === 'local' ? 'That list was not found.' : 'Loading...'),
+        h('button', { class:'btn', type:'button', onclick:() => go('') }, 'All lists'));
+      $('#addbar').hidden = true; return;
+    }
+    touchRecent(l); renderList(main, l); syncAddBar(l);
+  } else {
+    renderHome(main); $('#addbar').hidden = true;
+  }
+}
+
+function listCard(l){
+  const s = stats(l);
+  let meta;
+  if (l.tpl){
+    const secs = l.groups.filter(g => g.name).length;
+    meta = (secs ? secs + ' section' + (secs === 1 ? '' : 's') + ', ' : '') + s.total + ' starter task' + (s.total === 1 ? '' : 's');
+  } else {
+    meta = !s.total ? 'Empty' : s.done === s.total ? 'All ' + s.total + ' done' : s.done + ' of ' + s.total + ' done';
+  }
+  return h('button', { class:'card' + (l.tpl ? ' tpl' : ''), type:'button', onclick:() => go(l.id) },
+    h('div', { class:'name' }, l.name),
+    h('div', { class:'meta' }, meta),
+    !l.tpl && s.total ? h('div', { class:'bar' }, h('i', { style:'width:' + Math.round(100 * s.done / s.total) + '%' })) : null);
+}
+
+function renderHome(main){
+  main.append(h('header', { class:'top' },
+    h('h1', null, 'Checklists'),
+    h('button', { class:'btn primary', type:'button',
+      onclick:() => { ui.newOpen = !ui.newOpen; ui.newTpl = null; ui.newTplOpen = false; render(); } },
+      ui.newOpen ? 'Cancel' : '+ New list')
+  ));
+  main.append(banner());
+  if (ui.newOpen) main.append(newPanel(false));
+
+  const ls = realLists(), ts = templates();
+  const favs = settings.fav.map(byKey).filter(Boolean);
+  const recents = settings.recent.map(byKey).filter(l => l && !isFav(l)).slice(0, 3);
+  let first = true;
+  const head = t => { main.append(h('div', { class:'sechead' + (first ? ' first' : '') }, h('h2', { class:'sec' }, t))); first = false; };
+  if (favs.length){ head('Favorites'); main.append(h('div', { class:'cards' }, favs.map(listCard))); }
+  if (recents.length){ head('Recent'); main.append(h('div', { class:'cards' }, recents.map(listCard))); }
+  head('Lists');
+  if (!ls.length){
+    main.append(h('p', { class:'note' }, ts.length ? 'No lists yet. Tap + New list to start one from a template.' : 'No lists yet.'));
+  } else {
+    main.append(h('div', { class:'cards' }, ls.map(listCard)));
+  }
+
+  main.append(h('div', { class:'sechead' },
+    h('h2', { class:'sec' }, 'Templates'),
+    h('button', { class:'link', type:'button',
+      onclick:() => { ui.newTplOpen = !ui.newTplOpen; ui.newOpen = false; ui.newTpl = null; render(); } },
+      ui.newTplOpen ? 'Cancel' : '+ New template')));
+  if (ui.newTplOpen) main.append(newPanel(true));
+  if (!ts.length){
+    main.append(h('div', { class:'empty' },
+      h('p', { class:'note' }, 'A template is the starting point for new lists: sections plus default tasks. Put .md files in the ' + DIR_TPL + ' folder, or use Import markdown under Storage and backup and choose Add as templates, or open any list, tap Edit, and choose Save as template.')));
+  } else {
+    main.append(h('div', { class:'cards' }, ts.map(listCard)));
+  }
+  renderStorage(main);
+}
+
+function pendingPanel(){
+  const n = ui.pendingFolder.docs.length;
+  return h('div', { class:'banner' },
+    h('div', null, 'The folder already has ' + n + ' file' + (n === 1 ? '' : 's') + ', and this app has its own lists. What should happen? Merging keeps your version when a list or template has the same name.'),
+    h('div', { class:'addrow', style:'margin-top:8px;flex-wrap:wrap' },
+      h('button', { class:'btn primary', type:'button', onclick:() => fdAdopt('replace') }, 'Use the folder\u2019s'),
+      h('button', { class:'btn', type:'button', onclick:() => fdAdopt('merge') }, 'Merge, keep my versions'),
+      h('button', { class:'btn', type:'button', onclick:() => { ui.pendingFolder = null; render(); } }, 'Cancel')));
+}
+function importPanel(){
+  const file = h('input', { type:'file', accept:'.md,.txt,text/markdown,text/plain', 'aria-label':'Choose a markdown file' });
+  const ta = h('textarea', { 'aria-label':'Markdown to import', placeholder:'# List name\n\n## Section\n- [ ] Task', spellcheck:'false', style:'font:14px/1.4 ui-monospace,Menlo,Consolas,monospace' });
+  ta.value = ui.importText;
+  ta.addEventListener('input', () => { ui.importText = ta.value; });
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    try{ ui.importText = await f.text(); ta.value = ui.importText; }catch(e){ toast('Could not read that file.'); }
+  });
+  const go2 = asTpl => {
+    const d = parseAll(ui.importText);
+    if (!d.length){ toast('No lists found in that text.'); return; }
+    importDocs(d, asTpl); ui.importText = ''; ui.importOpen = false;
+    const w = asTpl ? 'template' : 'list';
+    toast('Added ' + d.length + ' ' + w + (d.length === 1 ? '' : 's')); render();
+  };
+  return h('div', { class:'panel' },
+    h('p', { class:'note' }, 'Choose a markdown file or paste one. A "# Title" line starts a list, "## Name" starts a section, and "- [ ] task" is a task. Then choose where it goes.'),
+    file, ta,
+    h('div', { class:'addrow' },
+      h('button', { class:'btn primary', type:'button', onclick:() => go2(false) }, 'Add as lists'),
+      h('button', { class:'btn primary', type:'button', onclick:() => go2(true) }, 'Add as templates')));
+}
+function renderStorage(main){
+  main.append(h('div', { class:'sechead' },
+    h('h2', { class:'sec' }, 'Storage and backup'),
+    h('button', { class:'link', type:'button', onclick:() => { ui.storageOpen = !ui.storageOpen; render(); } }, ui.storageOpen ? 'Hide' : 'Show')));
+  if (!ui.storageOpen) return;
+  const box = h('div', { class:'panel' });
+  if (mode === 'local'){
+    if (!fsSupported()){
+      box.append(h('p', { class:'note' }, 'Lists are saved inside this browser. This browser cannot save to a folder directly, so use the backup buttons below.'));
+    } else if (FD.state === 'none'){
+      box.append(
+        h('p', { class:'note' }, 'Lists are saved inside this browser. To keep them as markdown files on your phone, choose your ' + ROOT_NAME + ' folder once. The app then creates ' + DIR_LISTS + ' and ' + DIR_TPL + ' folders inside it, with one file per list.'),
+        h('button', { class:'btn', type:'button', onclick:fdLink }, 'Choose the ' + ROOT_NAME + ' folder'));
+    } else {
+      const linked = FD.state === 'linked';
+      box.append(
+        h('p', { class:'note' }, linked
+          ? 'Saving to ' + ROOT_NAME + '. Lists go in ' + DIR_LISTS + '/ and templates in ' + DIR_TPL + '/, one .md file each. If you edit those files elsewhere, the app picks up the changes when you come back to it.'
+          : ROOT_NAME + ' needs access again. Android may ask again each time you reopen the page.'),
+        h('div', { class:'addrow' },
+          linked ? null : h('button', { class:'btn primary', type:'button', onclick:fdReconnect }, 'Reconnect'),
+          h('button', { class:'btn', type:'button', onclick:fdUnlink }, 'Unlink folder')));
+    }
+    if (ui.pendingFolder) box.append(pendingPanel());
+  } else {
+    box.append(h('p', { class:'note' }, 'Your lists are saved in your Claude account.'));
+  }
+  box.append(h('div', { class:'addrow' },
+    h('button', { class:'btn', type:'button', onclick:() => copyAll(false) }, 'Copy lists as markdown'),
+    h('button', { class:'btn', type:'button', onclick:() => copyAll(true) }, 'Copy templates as markdown')));
+  if (mode === 'local') box.append(h('div', { class:'addrow' },
+    h('button', { class:'btn', type:'button', onclick:() => downloadAll(false) }, 'Download lists .md'),
+    h('button', { class:'btn', type:'button', onclick:() => downloadAll(true) }, 'Download templates .md')));
+  if (ui.bkText != null){
+    const ta = h('textarea', { readonly:true, 'aria-label':'All lists as markdown', style:'font:14px/1.4 ui-monospace,Menlo,Consolas,monospace' });
+    ta.value = ui.bkText; ta.addEventListener('focus', () => ta.select());
+    box.append(h('p', { class:'note' }, 'Copy did not work here. Select the text below and copy it.'), ta);
+  }
+  box.append(h('button', { class:'btn', type:'button', onclick:() => { ui.importOpen = !ui.importOpen; render(); } }, ui.importOpen ? 'Hide import' : 'Import markdown'));
+  if (ui.importOpen) box.append(importPanel());
+  main.append(box);
+}
+
+function newPanel(isTpl){
+  const tpls = templates();
+  const sel = isTpl ? null : h('select', { 'aria-label':'Start from' },
+    h('option', { value:'' }, 'Blank list'),
+    tpls.map(t => h('option', { value:t.id }, 'From template: ' + t.name)));
+  const name = h('input', { type:'text', placeholder:isTpl ? 'Template name' : 'List name', 'aria-label':'Name' });
+  const pasteLabel = h('label', null, 'Items (optional): one per line, a line ending in a colon starts a section');
+  const paste = h('textarea', { placeholder:'Kitchen:\nWipe counters\nSweep floor\nBathroom:\nScrub toilet', 'aria-label':'Paste items' });
+  let auto = '';
+  const sync = () => {
+    const t = sel && sel.value ? lists.get(sel.value) : null;
+    pasteLabel.hidden = paste.hidden = !!t;
+    if (t && (name.value === '' || name.value === auto)){
+      auto = t.name + (dateLabel() ? ', ' + dateLabel() : ''); name.value = auto;
+    } else if (!t && auto && name.value === auto){
+      name.value = ''; auto = '';
+    }
+  };
+  if (sel){
+    if (ui.newTpl && lists.has(ui.newTpl)) sel.value = ui.newTpl;
+    sel.addEventListener('change', sync);
+    sync();
+  }
+  const make = () => {
+    const nm = name.value.trim();
+    if (!nm){ name.focus(); return; }
+    const t = sel && sel.value ? lists.get(sel.value) : null;
+    const id = addList(nm, t ? cloneGroups(t) : parseItems(paste.value), isTpl, t ? t.labels : []);
+    ui.newOpen = false; ui.newTplOpen = false; ui.newTpl = null;
+    go(id);
+  };
+  name.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); make(); } });
+  return h('div', { class:'panel' },
+    sel ? h('label', null, 'Start from') : null, sel,
+    h('label', null, 'Name'), name,
+    pasteLabel, paste,
+    h('button', { class:'btn primary', type:'button', onclick:make }, isTpl ? 'Create template' : 'Create list'));
+}
+
+function renderList(main, l){
+  const isTpl = !!l.tpl;
+  const edit = ui.edit;
+  const s = stats(l);
+  const checked = s.done;
+
+  main.append(h('header', { class:'top' },
+    h('button', { class:'btn small', type:'button', onclick:() => go('') }, '‹ Lists'),
+    edit
+      ? h('input', { class:'title', type:'text', value:l.name, 'aria-label':'Name',
+          onchange:e => { const v = e.target.value.trim(); if (v){ const ok = keyOf(l); mutate(l.id, x => { x.name = v; }, { quiet:true }); renameKey(ok, keyOf(l)); } else e.target.value = l.name; },
+          onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } })
+      : h('h1', null, l.name),
+    h('button', { class:'btn small', type:'button', 'aria-pressed':String(isFav(l)), 'aria-label':isFav(l) ? 'Remove from favorites' : 'Add to favorites', onclick:() => toggleFav(l) }, isFav(l) ? '\u2605' : '\u2606'),
+    h('button', { class:'btn small' + (edit ? ' primary' : ''), type:'button', onclick:() => { ui.edit = !ui.edit; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
+  ));
+  main.append(banner());
+
+  if (isTpl){
+    main.append(
+      h('p', { class:'note' }, 'Template: saved in the ' + DIR_TPL + ' folder. Editing it does not touch lists you already made.'),
+      h('button', { class:'btn primary', type:'button', onclick:() => useTemplate(l) }, 'Start a list from this'));
+  } else if (s.total){
+    main.append(
+      h('div', { class:'note' }, s.done === s.total ? 'All ' + s.total + ' done' : s.done + ' of ' + s.total + ' done'),
+      h('div', { class:'bar' }, h('i', { style:'width:' + Math.round(100 * s.done / s.total) + '%' })));
+  }
+
+  if (!edit){
+    main.append(h('div', { class:'actions' },
+      h('button', { class:'btn', type:'button', disabled:!checked,
+        onclick:() => mutate(l.id, x => x.groups.forEach(g => g.items.forEach(i => { i.d = false; })), { undo:'Unchecked ' + checked + ' item' + (checked === 1 ? '' : 's') }) },
+        'Reset checks'),
+      h('button', { class:'btn', type:'button', disabled:!checked,
+        onclick:() => mutate(l.id, x => x.groups.forEach(g => { g.items = g.items.filter(i => !i.d); }), { undo:'Deleted ' + checked + ' checked item' + (checked === 1 ? '' : 's') }) },
+        'Delete checked')));
+  }
+
+  const f = edit ? [] : [...ui.filter].filter(x => l.labels.includes(x));
+  const show = it => f.every(x => (it.l || []).includes(x));
+  if (!edit && l.labels.length){
+    main.append(h('div', { class:'chips' },
+      l.labels.map(nm => h('button', { class:'chip' + (ui.filter.has(nm) ? ' on' : ''), type:'button', 'aria-pressed':String(ui.filter.has(nm)),
+        onclick:() => { if (ui.filter.has(nm)) ui.filter.delete(nm); else ui.filter.add(nm); render(); } }, nm)),
+      f.length ? h('button', { class:'link', type:'button', onclick:() => { ui.filter = new Set(); render(); } }, 'Clear') : null));
+  }
+  const visible = l.groups.filter(g => edit || (f.length ? g.items.some(show) : g.items.length));
+  if (!edit && !s.total){
+    main.append(h('p', { class:'note', style:'margin-top:18px' }, 'Nothing here yet. Add an item below.'));
+  } else if (!edit && f.length && !visible.length){
+    main.append(h('p', { class:'note', style:'margin-top:18px' }, 'No items have all of those labels.'));
+  }
+  const showHeads = l.groups.length > 1 || l.groups.some(g => g.name);
+
+  visible.forEach(g => {
+    const gi = l.groups.indexOf(g);
+    const gDone = g.items.filter(i => i.d).length;
+    const ck = l.id + ':' + g.id;
+    const isCollapsed = !edit && ui.collapsed.has(ck);
+    const box = h('section', { class:'group' });
+
+    if (edit && showHeads){
+      box.append(h('div', { class:'ghead' },
+        h('button', { class:'ib', type:'button', 'aria-label':'Move section up', disabled:gi === 0,
+          onclick:() => mutate(l.id, x => swap(x.groups, gi, gi - 1)) }, '↑'),
+        h('button', { class:'ib', type:'button', 'aria-label':'Move section down', disabled:gi === l.groups.length - 1,
+          onclick:() => mutate(l.id, x => swap(x.groups, gi, gi + 1)) }, '↓'),
+        h('input', { type:'text', value:g.name, placeholder:'Section name', 'aria-label':'Section name',
+          onchange:e => { mutate(l.id, x => { findGroup(x, g.id).name = e.target.value.trim(); }, { quiet:true }); syncAddBar(lists.get(l.id)); },
+          onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+        l.groups.length > 1
+          ? h('button', { class:'ib del', type:'button', 'aria-label':'Delete section',
+              onclick:() => {
+                if (ui.confirm === 'g:' + g.id){ clearConfirm(); mutate(l.id, x => { x.groups = x.groups.filter(q => q.id !== g.id); }, { undo:'Deleted section' }); }
+                else armConfirm('g:' + g.id);
+              } }, ui.confirm === 'g:' + g.id ? '?' : '×')
+          : null));
+    } else if (!edit && showHeads){
+      box.append(h('div', { class:'ghead' },
+        h('button', { class:'gname', type:'button', 'aria-expanded':String(!isCollapsed),
+          onclick:() => { if (ui.collapsed.has(ck)) ui.collapsed.delete(ck); else ui.collapsed.add(ck); render(); } },
+          (isCollapsed ? '▸ ' : '▾ ') + (g.name || 'Items')),
+        h('span', { class:'cnt' }, gDone + '/' + g.items.length),
+        gDone ? h('button', { class:'link', type:'button',
+          onclick:() => mutate(l.id, x => findGroup(x, g.id).items.forEach(i => { i.d = false; }), { undo:'Unchecked ' + (g.name || 'section') }) }, 'Reset') : null));
+    }
+
+    if (!isCollapsed){
+      box.append(h('ul', null, (edit ? g.items : g.items.filter(show)).map((it, ii) => {
+        if (edit){
+          return h('li', null, h('div', { class:'erow' },
+            h('button', { class:'ib', type:'button', 'aria-label':'Move up', disabled:ii === 0,
+              onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii - 1)) }, '↑'),
+            h('button', { class:'ib', type:'button', 'aria-label':'Move down', disabled:ii === g.items.length - 1,
+              onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii + 1)) }, '↓'),
+            h('input', { type:'text', value:it.t, 'aria-label':'Item text',
+              onchange:e => { const v = e.target.value.trim(); if (v) mutate(l.id, x => { findItem(findGroup(x, g.id), it.id).t = v; }, { quiet:true }); else e.target.value = it.t; },
+              onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+            h('button', { class:'ib del', type:'button', 'aria-label':'Delete item',
+              onclick:() => mutate(l.id, x => { const gg = findGroup(x, g.id); gg.items = gg.items.filter(q => q.id !== it.id); }, { undo:'Deleted “' + it.t + '”' }) }, '×')),
+            l.labels.length ? h('div', { class:'etags' }, l.labels.map(nm => h('button', { class:'chip sm' + ((it.l || []).includes(nm) ? ' on' : ''), type:'button',
+              'aria-pressed':String((it.l || []).includes(nm)),
+              onclick:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); q.l = q.l || []; const k = q.l.indexOf(nm); if (k < 0) q.l.push(nm); else q.l.splice(k, 1); }) }, nm))) : null);
+        }
+        return h('li', { class:it.d ? 'done' : '' }, h('label', { class:'row' },
+          h('input', { type:'checkbox', checked:it.d,
+            onchange:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q) q.d = !q.d; }) }),
+          h('span', { class:'box' }),
+          h('span', { class:'txt' }, it.t, it.l && it.l.length ? h('span', { class:'tags' }, it.l.map(x => h('span', { class:'tag' }, x))) : null)));
+      })));
+      if (edit && !g.items.length) box.append(h('p', { class:'note' }, 'No items in this section.'));
+    }
+    main.append(box);
+  });
+
+  if (edit){
+    const secName = h('input', { type:'text', placeholder:'New section (a room, an aisle...)', 'aria-label':'New section name' });
+    const addSec = () => {
+      const v = secName.value.trim(); if (!v) return;
+      mutate(l.id, x => { x.groups.push(makeGroup(v, [])); });
+    };
+    secName.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addSec(); } });
+    const kind = isTpl ? 'template' : 'list';
+    const lblNew = h('input', { type:'text', placeholder:'New label (weekly, $$, favorite...)', 'aria-label':'New label name' });
+    const addLbl = () => {
+      const v = cleanLabel(lblNew.value); if (!v) return;
+      if (l.labels.some(x => x.toLowerCase() === v.toLowerCase())){ toast('That label already exists.'); return; }
+      mutate(l.id, x => { x.labels.push(v); });
+    };
+    lblNew.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addLbl(); } });
+    const lblBox = h('div', { class:'lblbox' },
+      h('h2', { class:'sec' }, 'Labels'),
+      l.labels.map((nm, i) => h('div', { class:'addrow' },
+        h('input', { type:'text', value:nm, 'aria-label':'Label name',
+          onchange:e => {
+            const v = cleanLabel(e.target.value);
+            if (!v || l.labels.some((x, j) => j !== i && x.toLowerCase() === v.toLowerCase())){ e.target.value = nm; return; }
+            ui.filter = new Set(); ui.addLabels = new Set();
+            mutate(l.id, x => { x.labels[i] = v; x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).map(q => q === nm ? v : q); })); });
+          },
+          onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+        h('button', { class:'ib del', type:'button', 'aria-label':'Delete label ' + nm,
+          onclick:() => {
+            if (ui.confirm === 'lbl:' + nm){
+              clearConfirm(); ui.filter = new Set(); ui.addLabels = new Set();
+              mutate(l.id, x => { x.labels = x.labels.filter(q => q !== nm); x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).filter(q => q !== nm); })); }, { undo:'Deleted label ' + nm });
+            } else armConfirm('lbl:' + nm);
+          } }, ui.confirm === 'lbl:' + nm ? '?' : '×'))),
+      h('div', { class:'addrow' }, lblNew, h('button', { class:'btn', type:'button', onclick:addLbl }, 'Add label')));
+    main.append(h('div', { class:'footer' }, lblBox,
+      h('div', { class:'addrow' }, secName, h('button', { class:'btn', type:'button', onclick:addSec }, 'Add section')),
+      isTpl ? null : h('button', { class:'btn', type:'button',
+        onclick:() => { addList(l.name, cloneGroups(l), true, l.labels); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
+      h('button', { class:'btn', type:'button', onclick:() => { ui.exportText = exportText(l); render(); } }, 'Copy as text'),
+      ui.exportText != null ? exportPanel() : null,
+      h('button', { class:'btn danger', type:'button',
+        onclick:() => {
+          if (ui.confirm === 'list'){
+            clearConfirm(); lists.delete(l.id); persist(l.id); ui.edit = false; toast(isTpl ? 'Template deleted' : 'List deleted'); go('');
+          } else armConfirm('list');
+        } }, ui.confirm === 'list' ? 'Tap again to delete this ' + kind : 'Delete ' + kind)));
+  }
+}
+
+function exportText(l){
+  const out = [];
+  l.groups.forEach(g => {
+    if (g.name) out.push(g.name + ':');
+    g.items.forEach(i => out.push((i.d ? '[x] ' : '[ ] ') + i.t));
+    out.push('');
+  });
+  return out.join('\n').trim();
+}
+function exportPanel(){
+  const ta = h('textarea', { readonly:true, 'aria-label':'List as text' });
+  ta.value = ui.exportText;
+  ta.addEventListener('focus', () => ta.select());
+  const btn = h('button', { class:'btn primary', type:'button',
+    onclick:async () => {
+      try{ await navigator.clipboard.writeText(ui.exportText); btn.textContent = 'Copied'; }
+      catch(e){ ta.focus(); ta.select(); btn.textContent = 'Select the text and copy it'; }
+    } }, 'Copy');
+  return h('div', { class:'panel' }, ta, btn);
+}
+
+/* ---------- add bar ---------- */
+let barSig = '';
+function renderAddTags(l){
+  const box = $('#addtags');
+  if (!l.labels.length){ box.hidden = true; box.replaceChildren(); return; }
+  box.hidden = false;
+  box.replaceChildren(...l.labels.map(nm => h('button', { class:'chip sm' + (ui.addLabels.has(nm) ? ' on' : ''), type:'button',
+    'aria-pressed':String(ui.addLabels.has(nm)),
+    onclick:() => { if (ui.addLabels.has(nm)) ui.addLabels.delete(nm); else ui.addLabels.add(nm); renderAddTags(l); } }, nm)));
+}
+function syncAddBar(l){
+  const bar = $('#addbar'), sel = $('#addgroup');
+  bar.hidden = false; renderAddTags(l);
+  const sig = l.id + '|' + l.groups.map(g => g.id + ':' + g.name).join('|');
+  if (sig !== barSig){
+    barSig = sig;
+    sel.replaceChildren(...l.groups.map(g => h('option', { value:g.id }, g.name || 'Items')));
+  }
+  const want = ui.lastGroup[l.id];
+  sel.value = l.groups.some(g => g.id === want) ? want : (l.groups[0] ? l.groups[0].id : '');
+  sel.hidden = l.groups.length < 2;
+}
+$('#addgroup').addEventListener('change', e => {
+  const id = currentId(); if (id) ui.lastGroup[id] = e.target.value;
+});
+$('#addbar').addEventListener('submit', e => {
+  e.preventDefault();
+  const id = currentId(), input = $('#addtext');
+  const text = input.value.trim();
+  if (!id || !text) return;
+  const sel = $('#addgroup');
+  mutate(id, l => {
+    if (!l.groups.length) l.groups.push(makeGroup('', []));
+    const g = findGroup(l, sel.value) || l.groups[0];
+    g.items.push({ id:uid(), t:text, d:false, l:l.labels.filter(x => ui.addLabels.has(x)) });
+    ui.lastGroup[id] = g.id;
+  });
+  input.value = '';
+  input.focus();
+});
+
+/* ---------- start ---------- */
+async function init(){
+  render();
+  let db = null, id = null;
+  try{
+    if (window.claude && typeof window.claude.use === 'function'){
+      db = await window.claude.use('db');
+      const user = await window.claude.use('user');
+      id = user ? await user.id() : null;
+    }
+  }catch(e){}
+  if (db && id){
+    mode = 'cloud';
+    col = db.collection('data/users/' + id);
+    subscribe();
+  } else {
+    mode = 'local';
+    loadSettingsLocal(); loadLocal();
+    await fdInit();
+  }
+  render();
+}
+init();
+})();
+</script>
+</body>
+</html>
