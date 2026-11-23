@@ -128,7 +128,7 @@ li:first-child{border-top:0}
 .dets{flex:none;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:10px;width:var(--w)}
 .dets > *{min-width:0;overflow-wrap:anywhere;color:var(--muted);font-size:14px;text-align:left}
 .dets > :last-child{text-align:right}
-.colhead{display:flex;justify-content:flex-end;padding-right:15px;margin:6px 0 2px;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.colhead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;padding:0 15px 0 52px;margin:6px 0 2px;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .colhead .dets > *{font-size:12px}
 .etags input{flex:1 1 0;min-width:0}
 #addgroup{width:38%;min-width:0;flex:none}
@@ -152,7 +152,7 @@ li:first-child{border-top:0}
   .top{display:block;border-bottom:2px solid #000;margin:0 0 6px;padding-bottom:6px}
   .top h1{font-size:23pt}
   .desc{margin:0 0 6px;font-size:10.5pt}
-  .colhead{margin:8px 0 0;padding-right:4px}
+  .colhead{margin:8px 0 0;padding:0 4px 0 28px;font-size:8.5pt}
   .colhead .dets > *{font-size:8.5pt}
   .group{break-inside:avoid;margin:0}
   .ghead{margin:16px 0 4px;padding:0 0 3px;border-bottom:1px solid #999;break-after:avoid}
@@ -228,6 +228,7 @@ function normalize(id, d){
     pos: Number(d.pos) || 0,
     tpl: !!d.tpl,
     desc: String(d.desc || ''),
+    main: String(d.main || ''),
     cols: (Array.isArray(d.cols) ? d.cols : d.col ? [d.col] : []).map(String).slice(0, MAXX),
     labels: (Array.isArray(d.labels) ? d.labels : []).map(String),
     groups: groups.map(g => ({
@@ -242,7 +243,7 @@ function normalize(id, d){
   };
 }
 const MAXX = 2;   // extra columns beside the item itself
-const toDoc = l => ({ name:l.name, pos:l.pos, tpl:!!l.tpl, desc:l.desc || '', cols:l.cols || [], labels:l.labels || [], groups:l.groups });
+const toDoc = l => ({ name:l.name, pos:l.pos, tpl:!!l.tpl, desc:l.desc || '', main:l.main || '', cols:l.cols || [], labels:l.labels || [], groups:l.groups });
 const usesDet = l => l.cols.length > 0;
 const xVal = (it, i) => (it.x && it.x[i]) || '';
 const cleanLabel = v => String(v).replace(/[#,\n]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
@@ -332,7 +333,7 @@ function cloneGroups(src){
 function addList(name, groups, isTpl, labels, extra){
   const id = 'list-' + uid();
   const pos = Math.max(0, ...[...lists.values()].map(x => x.pos)) + 1;
-  lists.set(id, { id, name, pos, tpl:!!isTpl, desc:(extra && extra.desc) || '', cols:((extra && extra.cols) || []).slice(0, MAXX), labels:(labels || []).slice(), groups });
+  lists.set(id, { id, name, pos, tpl:!!isTpl, desc:(extra && extra.desc) || '', main:(extra && extra.main) || '', cols:((extra && extra.cols) || []).slice(0, MAXX), labels:(labels || []).slice(), groups });
   persist(id);
   return id;
 }
@@ -370,6 +371,7 @@ function xMd(i, l){
 function docMd(l){
   const out = ['# ' + l.name];
   if (l.desc) out.push('> ' + l.desc.replace(/\s*\n\s*/g, ' '));
+  if (l.main) out.push('item: ' + l.main);
   if (l.cols && l.cols.length) out.push('columns: ' + l.cols.join(', '));
   if (l.labels && l.labels.length) out.push('labels: ' + l.labels.join(', '));
   out.push('');
@@ -389,7 +391,7 @@ function serializeAll(tpl){
 const serializeOne = l => mdJoin(docMd(l));
 function parseAll(text){
   const docs = []; let cur = null, grp = null;
-  const newDoc = name => { cur = { name, tpl:false, desc:'', cols:[], labels:[], groups:[] }; grp = null; docs.push(cur); };
+  const newDoc = name => { cur = { name, tpl:false, desc:'', main:'', cols:[], labels:[], groups:[] }; grp = null; docs.push(cur); };
   const add = (t, d) => {
     t = t.trim(); if (!t) return;
     if (!cur) newDoc('Imported');
@@ -414,6 +416,7 @@ function parseAll(text){
     if ((m = line.match(/^#\s+(.*)$/))){ newDoc(m[1].trim() || 'Untitled'); return; }
     if (/^<!--.*-->$/.test(line)) return;
     if (cur && !cur.groups.length && (m = line.match(/^>\s?(.*)$/))){ cur.desc = (cur.desc ? cur.desc + ' ' : '') + m[1].trim(); return; }
+    if (cur && !cur.groups.length && (m = line.match(/^item:\s*(.*)$/i))){ cur.main = cleanLabel(m[1]); return; }
     if (cur && !cur.groups.length && (m = line.match(/^columns?:\s*(.*)$/i))){ cur.cols = m[1].split(',').map(cleanLabel).filter(Boolean).slice(0, MAXX); return; }
     if (cur && !cur.groups.length && (m = line.match(/^labels:\s*(.*)$/i))){
       cur.labels = m[1].split(',').map(cleanLabel).filter((x, i, a) => x && a.indexOf(x) === i); return;
@@ -431,7 +434,7 @@ function parseAll(text){
   return docs;
 }
 function importDocs(docs, asTpl){
-  docs.forEach(d => addList(d.name, d.groups, asTpl, d.labels, { desc:d.desc, cols:d.cols }));
+  docs.forEach(d => addList(d.name, d.groups, asTpl, d.labels, { desc:d.desc, main:d.main, cols:d.cols }));
 }
 
 /* ---------- optional: keep the lists as markdown files in a folder on the phone ----------
@@ -542,7 +545,7 @@ async function fdScan(){
     if (!text.trim()) continue;
     parseAll(text).forEach((d, k) => {
       const name = d.name === 'Imported' && !/^#\s/m.test(text) ? x.fname.replace(/\.[^.]+$/, '') : d.name;
-      docs.push({ key:x.kind + '/' + x.fname, extra:k > 0, kind:x.kind, file:x.fname, name, labels:d.labels, desc:d.desc, cols:d.cols, groups:d.groups });
+      docs.push({ key:x.kind + '/' + x.fname, extra:k > 0, kind:x.kind, file:x.fname, name, labels:d.labels, desc:d.desc, main:d.main, cols:d.cols, groups:d.groups });
     });
   }
   docs.sort((a, b) => a.name.localeCompare(b.name));
@@ -561,9 +564,9 @@ function fdApply(docs, merge){
     }
     if (id && lists.has(id)){
       const l = lists.get(id);
-      l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.desc = s.desc || ''; l.cols = s.cols || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
+      l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.desc = s.desc || ''; l.main = s.main || ''; l.cols = s.cols || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
     } else {
-      const nid = addList(s.name, s.groups, s.kind === DIR_TPL, s.labels, { desc:s.desc, cols:s.cols });
+      const nid = addList(s.name, s.groups, s.kind === DIR_TPL, s.labels, { desc:s.desc, main:s.main, cols:s.cols });
       if (!merge) lists.get(nid).pos = i + 1;
       if (!s.extra) FD.files.set(nid, { dir:s.kind, file:s.file });
       seen.add(nid);
@@ -953,7 +956,7 @@ function newPanel(isTpl){
     const nm = name.value.trim();
     if (!nm){ name.focus(); return; }
     const t = sel && sel.value ? lists.get(sel.value) : null;
-    const id = addList(nm, t ? cloneGroups(t) : [makeGroup('', [])], isTpl, t ? t.labels : [], t ? { desc:t.desc, cols:t.cols } : null);
+    const id = addList(nm, t ? cloneGroups(t) : [makeGroup('', [])], isTpl, t ? t.labels : [], t ? { desc:t.desc, main:t.main, cols:t.cols } : null);
     ui.newOpen = false; ui.newTplOpen = false; ui.newTpl = null;
     go(id);
   };
@@ -1030,7 +1033,7 @@ function renderList(main, l){
   }
   const showHeads = l.groups.length > 1 || l.groups.some(g => g.name);
 
-  if (!edit && usesDet(l) && visible.length) main.append(h('div', { class:'colhead' }, detsEl(l, l.cols)));
+  if (!edit && (l.main || usesDet(l)) && visible.length) main.append(h('div', { class:'colhead' }, h('span', null, l.main || ''), usesDet(l) ? detsEl(l, l.cols) : null));
   visible.forEach(g => {
     const gi = l.groups.indexOf(g);
     const gDone = g.items.filter(i => i.d).length;
@@ -1072,7 +1075,7 @@ function renderList(main, l){
               onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii - 1)) }, '↑'),
             h('button', { class:'ib', type:'button', 'aria-label':'Move down', disabled:ii === g.items.length - 1,
               onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii + 1)) }, '↓'),
-            h('input', { type:'text', value:it.t, 'aria-label':'Item text',
+            h('input', { type:'text', value:it.t, placeholder:l.main || 'Item', 'aria-label':'Item text',
               onchange:e => { const v = e.target.value.trim(); if (v) mutate(l.id, x => { findItem(findGroup(x, g.id), it.id).t = v; }, { quiet:true }); else e.target.value = it.t; },
               onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
             h('button', { class:'ib del', type:'button', 'aria-label':'Delete item',
@@ -1139,7 +1142,10 @@ function renderList(main, l){
     };
     colNew.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addCol(); } });
     const colBox = h('div', { class:'lblbox' }, h('h2', { class:'sec' }, 'Columns'),
-      h('p', { class:'note', style:'margin:0' }, 'Column 1 is the item itself. You can add up to 2 more, like Qty or Store.'),
+      h('p', { class:'note', style:'margin:0' }, 'Name column 1 (Ingredient, Task, Place...) and add up to 2 more columns, like Qty or Store.'),
+      h('input', { type:'text', value:l.main || '', placeholder:'Column 1 name (Item)', 'aria-label':'Column 1 name',
+        onchange:e => mutate(l.id, x => { x.main = cleanLabel(e.target.value); }),
+        onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
       l.cols.map((nm, i) => h('div', { class:'addrow' },
         h('input', { type:'text', value:nm, 'aria-label':'Column name',
           onchange:e => { const v = cleanLabel(e.target.value); if (!v){ e.target.value = nm; return; } mutate(l.id, x => { x.cols[i] = v; }); },
@@ -1155,7 +1161,7 @@ function renderList(main, l){
     main.append(h('div', { class:'footer' }, colBox, lblBox,
       h('div', { class:'addrow' }, secName, h('button', { class:'btn', type:'button', onclick:addSec }, 'Add section')),
       isTpl ? null : h('button', { class:'btn', type:'button',
-        onclick:() => { addList(l.name, cloneGroups(l), true, l.labels, { desc:l.desc, cols:l.cols }); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
+        onclick:() => { addList(l.name, cloneGroups(l), true, l.labels, { desc:l.desc, main:l.main, cols:l.cols }); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
       h('button', { class:'btn', type:'button', onclick:() => { ui.exportText = exportText(l); render(); } }, 'Copy as text'),
       ui.exportText != null ? exportPanel() : null,
       h('button', { class:'btn danger', type:'button',
@@ -1202,6 +1208,7 @@ function syncAddBar(l){
   const bar = $('#addbar'), sel = $('#addgroup');
   bar.hidden = false; renderAddTags(l);
   bar.classList.toggle('multi', usesDet(l));
+  $('#addtext').placeholder = l.main || 'Add an item';
   const ds = $('#adddets'), dk = l.id + '|' + l.cols.join('|');
   if (ds.dataset.k !== dk){
     ds.dataset.k = dk;
