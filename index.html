@@ -446,6 +446,44 @@ const ROOT_NAME = 'myLists';
 const DIR_LISTS = 'lists';
 const DIR_TPL = 'templates';
 const FD = { root:null, state:'none', files:new Map(), sig:'', timer:null, queue:new Set(), busy:false, again:false, suppress:false, pending:false };
+/* What still needs to reach the folder, and which file belongs to which list, survive closing the app.
+   That is what keeps edits made while Android had the folder locked from being replaced by older files. */
+const dirtySet = new Set();
+const LS_DIRTY = 'checklists.dirty', LS_FMAP = 'checklists.fmap', LS_BAK = 'checklists.backups';
+function loadFsMeta(){
+  try{
+    JSON.parse(localStorage.getItem(LS_DIRTY) || '[]').forEach(i => dirtySet.add(i));
+    const m = JSON.parse(localStorage.getItem(LS_FMAP) || '{}');
+    Object.keys(m).forEach(id => FD.files.set(id, m[id]));
+  }catch(e){}
+}
+function saveFsMeta(){
+  try{
+    localStorage.setItem(LS_DIRTY, JSON.stringify([...dirtySet]));
+    const m = {}; FD.files.forEach((f, id) => { m[id] = f; });
+    localStorage.setItem(LS_FMAP, JSON.stringify(m));
+  }catch(e){}
+}
+function getBackups(){ try{ return JSON.parse(localStorage.getItem(LS_BAK) || '[]'); }catch(e){ return []; } }
+function snapshotBackup(){
+  if (!lists.size) return;
+  const snap = [...lists.values()].map(l => ({ id:l.id, ...toDoc(l) }));
+  const body = JSON.stringify(snap);
+  const all = getBackups();
+  if (all.length && JSON.stringify(all[0].lists) === body) return;
+  all.unshift({ t:Date.now(), lists:snap });
+  try{ localStorage.setItem(LS_BAK, JSON.stringify(all.slice(0, 3))); }catch(e){}
+}
+function restoreBackup(i){
+  const b = getBackups()[i]; if (!b) return;
+  snapshotBackup();
+  lists.clear();
+  b.lists.forEach(d => { const n = normalize(d.id, d); lists.set(n.id, n); });
+  saveLocal();
+  if (FD.root) lists.forEach((l, id) => { dirtySet.add(id); FD.queue.add(id); });
+  saveFsMeta(); if (FD.state === 'linked') fdFlushSoon();
+  toast('Restored the saved copy'); render();
+}
 const fsSupported = () => typeof window.showDirectoryPicker === 'function';
 function idb(){
   return new Promise((res, rej) => {
@@ -500,6 +538,7 @@ function fdFlushSoon(){
 }
 function scheduleFileWrite(id){
   if (FD.suppress) return;
+  if (FD.root){ dirtySet.add(id); saveFsMeta(); }
   if (FD.state === 'needs-permission'){ FD.pending = true; FD.queue.add(id); return; }
   if (FD.state !== 'linked') return;
   FD.queue.add(id); fdFlushSoon();
@@ -513,10 +552,10 @@ async function fdFlush(){
     do{
       FD.again = false;
       ids = [...FD.queue]; FD.queue.clear();
-      for (const id of ids) await fdSync(id);
+      for (const id of ids){ await fdSync(id); dirtySet.delete(id); }
       ids = [];
     } while (FD.again || FD.queue.size);
-    FD.sig = (await fdList()).sig;
+    FD.sig = (await fdList()).sig; saveFsMeta();
   }catch(e){
     ids.forEach(i => FD.queue.add(i));
     FD.state = 'needs-permission'; FD.pending = true; FD.busy = false;
@@ -552,17 +591,23 @@ async function fdScan(){
   return { docs, sig };
 }
 function fdApply(docs, merge){
+  snapshotBackup();
   FD.suppress = true;
   const byKey = new Map();
   FD.files.forEach((f, id) => byKey.set(f.dir + '/' + f.file, id));
-  const seen = new Set();
+  const seen = new Set(), skip = new Set();
+  if (!merge) dirtySet.forEach(id => {                       // deleted here, not yet removed from the folder
+    if (!lists.has(id) && FD.files.has(id)){ const f = FD.files.get(id); skip.add(f.dir + '/' + f.file); FD.queue.add(id); }
+  });
   docs.forEach((s, i) => {
+    if (!s.extra && skip.has(s.key)) return;
     let id = !merge && !s.extra ? byKey.get(s.key) : null;
     if (merge && !s.extra){
       const m = [...lists.values()].find(o => !FD.files.has(o.id) && o.name === s.name && !!o.tpl === (s.kind === DIR_TPL));
       if (m){ FD.files.set(m.id, { dir:s.kind, file:s.file }); FD.queue.add(m.id); seen.add(m.id); return; }
     }
     if (id && lists.has(id)){
+      if (dirtySet.has(id)){ seen.add(id); FD.queue.add(id); return; }   // my edits have not reached this file yet
       const l = lists.get(id);
       l.name = s.name; l.groups = s.groups; l.labels = s.labels || []; l.desc = s.desc || ''; l.main = s.main || ''; l.cols = s.cols || []; l.tpl = s.kind === DIR_TPL; l.pos = i + 1; seen.add(id);
     } else {
@@ -572,10 +617,15 @@ function fdApply(docs, merge){
       seen.add(nid);
     }
   });
-  if (!merge) [...lists.keys()].forEach(id => { if (!seen.has(id)){ lists.delete(id); FD.files.delete(id); } });
+  if (!merge) [...lists.keys()].forEach(id => {
+    if (seen.has(id)) return;
+    if (dirtySet.has(id)){ FD.queue.add(id); return; }          // made here, not saved to the folder yet
+    lists.delete(id); FD.files.delete(id);
+  });
   FD.suppress = false;
   saveLocal();
   lists.forEach((l, id) => { if (!FD.files.has(id)) FD.queue.add(id); });
+  saveFsMeta();
   if (FD.queue.size) fdFlushSoon();
 }
 async function fdStart(){
@@ -601,8 +651,8 @@ async function fdInit(){
 async function fdReconnect(){
   try{
     if ((await FD.root.requestPermission({ mode:'readwrite' })) !== 'granted'){ toast('Access to the folder was not granted.'); return; }
-    if (FD.pending){ FD.state = 'linked'; FD.pending = false; fdFlushSoon(); }
-    else await fdStart();
+    FD.pending = false;
+    await fdStart();
     render();
   }catch(e){ toast('Could not reopen the folder.'); }
 }
@@ -772,7 +822,7 @@ window.addEventListener('hashchange', () => {
 function banner(){
   if (errMsg) return h('div', { class:'banner' }, errMsg);
   if (mode === 'local' && FD.state === 'needs-permission')
-    return h('div', { class:'banner' }, ROOT_NAME + ' needs access again. ', h('button', { class:'link', type:'button', onclick:fdReconnect }, 'Reconnect'));
+    return h('div', { class:'banner' }, ROOT_NAME + ' needs access again. Your changes are kept in the app and go to the folder when you reconnect. ', h('button', { class:'link', type:'button', onclick:fdReconnect }, 'Reconnect'));
   if (mode === 'cloud' && !loaded && slow) return h('div', { class:'banner' }, 'Still trying to reach your saved lists...');
   return document.createDocumentFragment();
 }
@@ -907,12 +957,17 @@ function renderStorage(main){
       box.append(
         h('p', { class:'note' }, linked
           ? 'Saving to ' + ROOT_NAME + '. Lists go in ' + DIR_LISTS + '/ and templates in ' + DIR_TPL + '/, one .md file each. If you edit those files elsewhere, the app picks up the changes when you come back to it.'
-          : ROOT_NAME + ' needs access again. Android may ask again each time you reopen the page.'),
+          : ROOT_NAME + ' needs access again. Android may ask again each time you reopen the app. Changes you make meanwhile are kept in the app and saved to the folder when you reconnect.'),
         h('div', { class:'addrow' },
           linked ? null : h('button', { class:'btn primary', type:'button', onclick:fdReconnect }, 'Reconnect'),
           h('button', { class:'btn', type:'button', onclick:fdUnlink }, 'Unlink folder')));
     }
     if (ui.pendingFolder) box.append(pendingPanel());
+    const baks = getBackups();
+    if (baks.length) box.append(h('div', { class:'lblbox' },
+      h('p', { class:'note', style:'margin:0' }, 'Before loading from your folder, the app keeps a copy of what it had. If something looks wrong, restore one.'),
+      baks.map((bk, i) => h('button', { class:'btn', type:'button', onclick:() => restoreBackup(i) },
+        'Restore copy from ' + new Date(bk.t).toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) + ' (' + bk.lists.length + ' lists)'))));
   } else {
     box.append(h('p', { class:'note' }, 'Your lists are saved in your Claude account.'));
   }
@@ -1266,7 +1321,7 @@ async function init(){
     subscribe();
   } else {
     mode = 'local';
-    loadSettingsLocal(); loadLocal();
+    loadSettingsLocal(); loadFsMeta(); loadLocal();
     await fdInit();
   }
   render();
