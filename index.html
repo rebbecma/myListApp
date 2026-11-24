@@ -7,17 +7,12 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="theme-color" content="#2f6f5e">
+<meta name="theme-color" content="#1f1f23">
 <style>
 :root{
-  --bg:#f6f5f2; --card:#ffffff; --ink:#1d1d1b; --muted:#6b6a66; --line:#e4e2dc;
-  --accent:#2f6f5e; --accent-ink:#ffffff; --done:#9a9892; --danger:#b3392f; --bar:#e4e2dc;
-}
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#161614; --card:#201f1d; --ink:#efeee9; --muted:#9a988f; --line:#33322e;
-    --accent:#5fb59d; --accent-ink:#0f1d19; --done:#76746d; --danger:#e0766c; --bar:#33322e;
-  }
+  color-scheme:dark;
+  --bg:#1f1f23; --card:#2a2a30; --ink:#e6e6ec; --muted:#9a9aa6; --line:#3b3b44;
+  --accent:#b79cf0; --accent-ink:#1d1330; --done:#74747f; --danger:#e0766c; --bar:#3b3b44;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -75,11 +70,11 @@ textarea{min-height:110px;resize:vertical}
 .ghead{display:flex;align-items:center;gap:6px;padding:4px 2px}
 .ghead .gname{
   flex:1;min-width:0;background:none;border:0;text-align:left;padding:6px 2px;
-  font-weight:600;font-size:15px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);
+  font-weight:800;font-size:15px;text-transform:uppercase;letter-spacing:.03em;color:#9a6cf2;
   overflow-wrap:anywhere
 }
 .ghead .cnt{font-size:13px;color:var(--muted)}
-.ghead input[type=text]{font-weight:600}
+.ghead input[type=text]{font-weight:800;color:#9a6cf2}
 ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 li{border-top:1px solid var(--line)}
 li:first-child{border-top:0}
@@ -141,7 +136,7 @@ li:first-child{border-top:0}
 }
 #toast[hidden]{display:none}
 #toast button{background:none;border:0;color:var(--accent);font-weight:700;padding:0 2px}
-@media (prefers-color-scheme: dark){ #toast button{color:#0f6b55} }
+#toast button{color:#5a3aa0}
 @media print{
   @page{margin:16mm 14mm}
   :root{--bg:#fff;--card:#fff;--ink:#000;--muted:#555;--line:#bbb;--accent:#000;--accent-ink:#000;--done:#000}
@@ -658,10 +653,9 @@ async function fdReconnect(){
 }
 async function fdLink(){
   try{
-    const hnd = await window.showDirectoryPicker({ id:'mytasks', mode:'readwrite', startIn:'documents' });
-    if (hnd.name.toLowerCase() !== ROOT_NAME.toLowerCase()){
-      toast('Pick the folder named ' + ROOT_NAME + '. Create it first if it does not exist.'); return;
-    }
+    const picked = await window.showDirectoryPicker({ id:'mytasks', mode:'readwrite', startIn:'documents' });
+    // Picked the myLists folder itself: use it. Picked anywhere else: use (or create) myLists inside it.
+    const hnd = picked.name.toLowerCase() === ROOT_NAME.toLowerCase() ? picked : await picked.getDirectoryHandle(ROOT_NAME, { create:true });
     FD.root = hnd;
     await hnd.getDirectoryHandle(DIR_LISTS, { create:true });
     await hnd.getDirectoryHandle(DIR_TPL, { create:true });
@@ -757,9 +751,10 @@ function toggleFav(l){
   saveSettings(); render();
 }
 function touchRecent(l){
+  if (l.tpl) return;                       // Recent is for lists only, never templates
   const k = keyOf(l);
   if (settings.recent[0] === k) return;
-  settings.recent = [k, ...settings.recent.filter(x => x !== k)].slice(0, 8);
+  settings.recent = [k, ...settings.recent.filter(x => x !== k && x.indexOf(DIR_TPL + '/') !== 0)].slice(0, 8);
   saveSettings();
 }
 function renameKey(from, to){
@@ -880,7 +875,7 @@ function renderHome(main){
 
   const ls = realLists(), ts = templates();
   const favs = settings.fav.map(byKey).filter(Boolean);
-  const recents = settings.recent.map(byKey).filter(l => l && !isFav(l)).slice(0, 3);
+  const recents = settings.recent.map(byKey).filter(l => l && !l.tpl && !isFav(l)).slice(0, 3);
   let first = true;
   const head = t => { main.append(h('div', { class:'sechead' + (first ? ' first' : '') }, h('h2', { class:'sec' }, t))); first = false; };
   if (favs.length){ head('Favorites'); main.append(h('div', { class:'cards' }, favs.map(listCard))); }
@@ -950,8 +945,8 @@ function renderStorage(main){
       box.append(h('p', { class:'note' }, 'Lists are saved inside this browser. This browser cannot save to a folder directly, so use the backup buttons below.'));
     } else if (FD.state === 'none'){
       box.append(
-        h('p', { class:'note' }, 'Lists are saved inside this browser. To keep them as markdown files on your phone, choose your ' + ROOT_NAME + ' folder once. The app then creates ' + DIR_LISTS + ' and ' + DIR_TPL + ' folders inside it, with one file per list.'),
-        h('button', { class:'btn', type:'button', onclick:fdLink }, 'Choose the ' + ROOT_NAME + ' folder'));
+        h('p', { class:'note' }, 'Lists are saved inside this browser. To keep them as markdown files on your phone, choose where ' + ROOT_NAME + ' should live (like Documents) once. The app creates the ' + ROOT_NAME + ' folder there if it is missing, with ' + DIR_LISTS + ' and ' + DIR_TPL + ' folders inside, one file per list. If you already have a ' + ROOT_NAME + ' folder, you can choose that one directly.'),
+        h('button', { class:'btn', type:'button', onclick:fdLink }, 'Choose a folder for ' + ROOT_NAME));
     } else {
       const linked = FD.state === 'linked';
       box.append(
@@ -1040,7 +1035,8 @@ function renderList(main, l){
           onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } })
       : h('h1', null, l.name),
     h('button', { class:'btn small', type:'button', 'aria-pressed':String(isFav(l)), 'aria-label':isFav(l) ? 'Remove from favorites' : 'Add to favorites', onclick:() => toggleFav(l) }, isFav(l) ? '\u2605' : '\u2606'),
-    h('button', { class:'btn small' + (edit ? ' primary' : ''), type:'button', onclick:() => { ui.edit = !ui.edit; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
+    h('button', { class:'btn small' + (edit ? ' primary' : ''), type:'button', onmousedown:e => e.preventDefault(),
+      onclick:() => { const a = document.activeElement; if (a && a.blur && a !== document.body) a.blur(); ui.edit = !ui.edit; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
   ));
   main.append(banner());
   if (edit){
@@ -1106,11 +1102,10 @@ function renderList(main, l){
           onchange:e => { mutate(l.id, x => { findGroup(x, g.id).name = e.target.value.trim(); }, { quiet:true }); syncAddBar(lists.get(l.id)); },
           onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
         l.groups.length > 1
-          ? h('button', { class:'ib del', type:'button', 'aria-label':'Delete section',
+          ? h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete section',
               onclick:() => {
-                if (ui.confirm === 'g:' + g.id){ clearConfirm(); mutate(l.id, x => { x.groups = x.groups.filter(q => q.id !== g.id); }, { undo:'Deleted section' }); }
-                else armConfirm('g:' + g.id);
-              } }, ui.confirm === 'g:' + g.id ? '?' : '×')
+                mutate(l.id, x => { x.groups = x.groups.filter(q => q.id !== g.id); }, { undo:'Deleted section' });
+              } }, '×')
           : null));
     } else if (!edit && showHeads){
       box.append(h('div', { class:'ghead' },
@@ -1133,7 +1128,7 @@ function renderList(main, l){
             h('input', { type:'text', value:it.t, placeholder:l.main || 'Item', 'aria-label':'Item text',
               onchange:e => { const v = e.target.value.trim(); if (v) mutate(l.id, x => { findItem(findGroup(x, g.id), it.id).t = v; }, { quiet:true }); else e.target.value = it.t; },
               onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
-            h('button', { class:'ib del', type:'button', 'aria-label':'Delete item',
+            h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete item',
               onclick:() => mutate(l.id, x => { const gg = findGroup(x, g.id); gg.items = gg.items.filter(q => q.id !== it.id); }, { undo:'Deleted “' + it.t + '”' }) }, '×')),
             usesDet(l) ? h('div', { class:'etags' }, l.cols.map((c, k) => h('input', { type:'text', value:xVal(it, k), placeholder:c, 'aria-label':c,
               onchange:e => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q){ q.x = q.x || []; while (q.x.length < x.cols.length) q.x.push(''); q.x[k] = e.target.value.trim(); } }, { quiet:true }),
@@ -1180,13 +1175,11 @@ function renderList(main, l){
             mutate(l.id, x => { x.labels[i] = v; x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).map(q => q === nm ? v : q); })); });
           },
           onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
-        h('button', { class:'ib del', type:'button', 'aria-label':'Delete label ' + nm,
+        h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete label ' + nm,
           onclick:() => {
-            if (ui.confirm === 'lbl:' + nm){
-              clearConfirm(); ui.filter = new Set(); ui.addLabels = new Set();
-              mutate(l.id, x => { x.labels = x.labels.filter(q => q !== nm); x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).filter(q => q !== nm); })); }, { undo:'Deleted label ' + nm });
-            } else armConfirm('lbl:' + nm);
-          } }, ui.confirm === 'lbl:' + nm ? '?' : '×'))),
+            ui.filter = new Set(); ui.addLabels = new Set();
+            mutate(l.id, x => { x.labels = x.labels.filter(q => q !== nm); x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).filter(q => q !== nm); })); }, { undo:'Deleted label ' + nm });
+          } }, '×'))),
       h('div', { class:'addrow' }, lblNew, h('button', { class:'btn', type:'button', onclick:addLbl }, 'Add label')));
     const colNew = h('input', { type:'text', placeholder:'New column (Qty, Store, Price...)', 'aria-label':'New column name' });
     const addCol = () => {
@@ -1205,13 +1198,10 @@ function renderList(main, l){
         h('input', { type:'text', value:nm, 'aria-label':'Column name',
           onchange:e => { const v = cleanLabel(e.target.value); if (!v){ e.target.value = nm; return; } mutate(l.id, x => { x.cols[i] = v; }); },
           onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
-        h('button', { class:'ib del', type:'button', 'aria-label':'Delete column ' + nm,
+        h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete column ' + nm,
           onclick:() => {
-            if (ui.confirm === 'col:' + i){
-              clearConfirm();
-              mutate(l.id, x => { x.cols.splice(i, 1); x.groups.forEach(g => g.items.forEach(it => { if (it.x) it.x.splice(i, 1); })); }, { undo:'Deleted column ' + nm });
-            } else armConfirm('col:' + i);
-          } }, ui.confirm === 'col:' + i ? '?' : '×'))),
+            mutate(l.id, x => { x.cols.splice(i, 1); x.groups.forEach(g => g.items.forEach(it => { if (it.x) it.x.splice(i, 1); })); }, { undo:'Deleted column ' + nm });
+          } }, '×'))),
       l.cols.length < MAXX ? h('div', { class:'addrow' }, colNew, h('button', { class:'btn', type:'button', onclick:addCol }, 'Add column')) : null);
     main.append(h('div', { class:'footer' }, colBox, lblBox,
       h('div', { class:'addrow' }, secName, h('button', { class:'btn', type:'button', onclick:addSec }, 'Add section')),
@@ -1219,12 +1209,12 @@ function renderList(main, l){
         onclick:() => { addList(l.name, cloneGroups(l), true, l.labels, { desc:l.desc, main:l.main, cols:l.cols }); toast('Saved to ' + DIR_TPL + '. Find it on the home screen.'); } }, 'Save as template'),
       h('button', { class:'btn', type:'button', onclick:() => { ui.exportText = exportText(l); render(); } }, 'Copy as text'),
       ui.exportText != null ? exportPanel() : null,
-      h('button', { class:'btn danger', type:'button',
+      h('button', { class:'btn danger', type:'button', onmousedown:e => e.preventDefault(),
         onclick:() => {
-          if (ui.confirm === 'list'){
-            clearConfirm(); lists.delete(l.id); persist(l.id); ui.edit = false; toast(isTpl ? 'Template deleted' : 'List deleted'); go('');
-          } else armConfirm('list');
-        } }, ui.confirm === 'list' ? 'Tap again to delete this ' + kind : 'Delete ' + kind)));
+          const id = l.id, before = JSON.stringify(l);
+          lists.delete(id); persist(id); ui.edit = false; go('');
+          toast(isTpl ? 'Template deleted' : 'List deleted', () => { lists.set(id, normalize(id, JSON.parse(before))); persist(id); render(); });
+        } }, 'Delete ' + kind)));
   }
 }
 
