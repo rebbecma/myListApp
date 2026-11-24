@@ -25,8 +25,9 @@ body{
 #main{flex:1;padding:max(14px,env(safe-area-inset-top)) 14px 90px}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-.top{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
-.top h1{flex:1;margin:0;font-size:24px;line-height:1.2;min-width:0;overflow-wrap:anywhere}
+.top{display:flex;align-items:center;gap:8px;margin:4px 0 12px}
+.top .btn.small{padding:4px 8px}
+.top h1{flex:1;margin:0;font-size:22px;line-height:1.2;min-width:0;overflow-wrap:break-word}
 .top input.title{flex:1;min-width:0;font-size:20px;font-weight:600}
 .btn{
   border:1px solid var(--line);background:var(--card);border-radius:10px;
@@ -99,6 +100,19 @@ li:first-child{border-top:0}
 }
 .ib:disabled{opacity:.3}
 .ib.del{color:var(--danger)}
+.ib.drag{touch-action:none;cursor:grab;color:var(--muted);font-size:20px;line-height:1}
+.ib.drag:active{cursor:grabbing}
+li.editing{background:#2f2f38;box-shadow:inset 3px 0 0 var(--accent)}
+.ghead.editing{background:#2f2f38;border-radius:10px;padding:6px}
+.ghead.editing input[type=text]{flex:1;min-width:0}
+li[data-iid] .row,.ghead .gname{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.dragging{opacity:.35}
+.chip.editing{outline:2px solid var(--accent);outline-offset:1px}
+.chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+li.editing.dragging .etags{display:none}
+.ghost{position:fixed;z-index:20;pointer-events:none;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:10px 14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.dragging-now{-webkit-user-select:none;user-select:none;overscroll-behavior:contain}
+.secdrag .group > ul,.secdrag .group > p{display:none}
 .footer{margin-top:22px;display:grid;gap:10px}
 .addrow{display:flex;gap:8px}
 #addbar{
@@ -203,7 +217,7 @@ const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(3
 
 /* ---------- state ---------- */
 const ui = {
-  edit:false, collapsed:new Set(), confirm:null, confirmT:null,
+  edit:false, editItem:null, editGroup:null, editLabel:null, addMenu:null, collapsed:new Set(), confirm:null, confirmT:null,
   newOpen:false, newTplOpen:false, newTpl:null, keepNew:false,
   exportText:null, lastGroup:{}, printing:false, filter:new Set(), addLabels:new Set(),
   storageOpen:false, importOpen:false, importText:'', bkText:null, pendingFolder:null
@@ -807,7 +821,7 @@ function currentId(){
 }
 function go(id){ location.hash = id || ''; }
 window.addEventListener('hashchange', () => {
-  ui.edit = false; ui.exportText = null; clearConfirm();
+  ui.edit = false; ui.editItem = null; ui.editGroup = null; ui.editLabel = null; ui.addMenu = null; ui.exportText = null; clearConfirm();
   if (ui.keepNew) ui.keepNew = false; else { ui.newOpen = false; ui.newTpl = null; }
   ui.newTplOpen = false; ui.filter = new Set(); ui.addLabels = new Set();
   render(); window.scrollTo(0, 0);
@@ -1021,6 +1035,199 @@ function detsEl(l, vals){
   const n = l.cols.length;
   return h('span', { class:'dets', style:'--n:' + n + ';--w:' + (n === 1 ? '46%' : '66%') }, vals.map(v => h('span', null, v)));
 }
+function addPanel(l){
+  const close = () => { ui.addMenu = null; render(); };
+  if (ui.addMenu === 'menu'){
+    return h('div', { class:'panel' },
+      h('div', { class:'sec' }, 'Add a new'),
+      h('div', { class:'actions', style:'margin:0' },
+        h('button', { class:'btn', type:'button', onclick:() => { ui.addMenu = null; render(); const t = $('#addtext'); t.focus(); t.scrollIntoView({ block:'nearest' }); } }, 'Item'),
+        h('button', { class:'btn', type:'button', onclick:() => { ui.addMenu = 'section'; render(); } }, 'Section'),
+        h('button', { class:'btn', type:'button', onclick:() => { ui.addMenu = 'label'; render(); } }, 'Tag'),
+        h('button', { class:'link', type:'button', onclick:close }, 'Cancel')));
+  }
+  const isSec = ui.addMenu === 'section';
+  const inp = h('input', { type:'text', placeholder:isSec ? 'Section name (a room, an aisle...)' : 'Tag name (weekly, $$, favorite...)', 'aria-label':isSec ? 'New section name' : 'New tag name', autocomplete:'off' });
+  const go1 = () => {
+    if (isSec){
+      const v = inp.value.trim(); if (!v) return;
+      const g = makeGroup(v, []);
+      ui.addMenu = null; ui.editGroup = g.id; ui.editItem = null;
+      mutate(l.id, x => { x.groups.push(g); });
+      requestAnimationFrame(() => { const el = document.querySelector('section[data-gid="' + g.id + '"]'); if (el) el.scrollIntoView({ block:'center' }); });
+    } else {
+      const v = cleanLabel(inp.value); if (!v) return;
+      if (l.labels.some(x => x.toLowerCase() === v.toLowerCase())){ toast('That tag already exists.'); return; }
+      ui.addMenu = null; ui.editLabel = v;
+      mutate(l.id, x => { x.labels.push(v); });
+    }
+  };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); go1(); } });
+  setTimeout(() => inp.focus(), 0);
+  return h('div', { class:'panel' },
+    h('div', { class:'sec' }, isSec ? 'New section' : 'New tag'), inp,
+    h('div', { class:'actions', style:'margin:0' },
+      h('button', { class:'btn primary', type:'button', onclick:go1 }, isSec ? 'Add section' : 'Add tag'),
+      h('button', { class:'btn', type:'button', onclick:() => { ui.addMenu = 'menu'; render(); } }, 'Back'),
+      h('button', { class:'link', type:'button', onclick:close }, 'Cancel')));
+}
+function labelPanel(l, nm){
+  const inp = h('input', { type:'text', value:nm, 'aria-label':'Tag name',
+    onchange:e => {
+      const v = cleanLabel(e.target.value);
+      if (!v || l.labels.some(x => x !== nm && x.toLowerCase() === v.toLowerCase())){ e.target.value = nm; return; }
+      ui.filter = new Set(); ui.addLabels = new Set(); ui.editLabel = v;
+      mutate(l.id, x => { const i = x.labels.indexOf(nm); if (i >= 0) x.labels[i] = v; x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).map(q => q === nm ? v : q); })); });
+    },
+    onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } });
+  return h('div', { class:'panel' },
+    h('div', { class:'sec' }, 'Edit tag'),
+    h('div', { class:'addrow' }, inp,
+      h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete tag ' + nm,
+        onclick:() => {
+          ui.filter = new Set(); ui.addLabels = new Set(); ui.editLabel = null;
+          mutate(l.id, x => { x.labels = x.labels.filter(q => q !== nm); x.groups.forEach(g => g.items.forEach(it => { it.l = (it.l || []).filter(q => q !== nm); })); }, { undo:'Deleted tag ' + nm });
+        } }, '×'),
+      h('button', { class:'btn small primary', type:'button', onmousedown:e => e.preventDefault(),
+        onclick:() => { const a = document.activeElement; if (a && a.blur) a.blur(); ui.editLabel = null; render(); } }, 'Done')));
+}
+
+/* ---------- editing one item, long press, drag ---------- */
+function editItemLi(l, g, it, ii, single){
+  const li = h('li', { class:single ? 'editing' : '', 'data-iid':it.id });
+  li.append(h('div', { class:'erow' },
+    single
+      ? h('button', { class:'ib drag', type:'button', 'aria-label':'Drag to move this item', onpointerdown:ev => dragItem(ev, l, it, li) }, '≡')
+      : [
+          h('button', { class:'ib', type:'button', 'aria-label':'Move up', disabled:ii === 0,
+            onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii - 1)) }, '↑'),
+          h('button', { class:'ib', type:'button', 'aria-label':'Move down', disabled:ii === g.items.length - 1,
+            onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii + 1)) }, '↓')
+        ],
+    h('input', { type:'text', value:it.t, placeholder:l.main || 'Item', 'aria-label':'Item text',
+      onchange:e => { const v = e.target.value.trim(); if (v) mutate(l.id, x => { findItem(findGroup(x, g.id), it.id).t = v; }, { quiet:true }); else e.target.value = it.t; },
+      onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+    h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete item',
+      onclick:() => { ui.editItem = null; mutate(l.id, x => { const gg = findGroup(x, g.id); gg.items = gg.items.filter(q => q.id !== it.id); }, { undo:'Deleted “' + it.t + '”' }); } }, '×')));
+  if (usesDet(l)) li.append(h('div', { class:'etags' }, l.cols.map((c, k) => h('input', { type:'text', value:xVal(it, k), placeholder:c, 'aria-label':c,
+    onchange:e => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q){ q.x = q.x || []; while (q.x.length < x.cols.length) q.x.push(''); q.x[k] = e.target.value.trim(); } }, { quiet:true }),
+    onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }))));
+  if (l.labels.length) li.append(h('div', { class:'etags' }, l.labels.map(nm => h('button', { class:'chip sm' + ((it.l || []).includes(nm) ? ' on' : ''), type:'button',
+    'aria-pressed':String((it.l || []).includes(nm)),
+    onclick:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); q.l = q.l || []; const k = q.l.indexOf(nm); if (k < 0) q.l.push(nm); else q.l.splice(k, 1); }) }, nm))));
+  if (single) li.append(h('div', { class:'etags', style:'justify-content:flex-end' },
+    h('button', { class:'btn small primary', type:'button', onmousedown:e => e.preventDefault(),
+      onclick:() => { const a = document.activeElement; if (a && a.blur) a.blur(); ui.editItem = null; render(); } }, 'Done')));
+  return li;
+}
+
+function swallowClick(){
+  const stop = e => { e.preventDefault(); e.stopPropagation(); };
+  const drop = () => document.removeEventListener('click', stop, true);
+  document.addEventListener('click', stop, { capture:true, once:true });
+  document.addEventListener('pointerup', () => setTimeout(drop, 80), { once:true });
+  setTimeout(drop, 3000);
+}
+function longPress(el, fn){
+  let t = null, sx = 0, sy = 0;
+  const stop = () => { clearTimeout(t); t = null; };
+  el.addEventListener('pointerdown', e => {
+    if (e.button > 0 || e.target.closest('.link')) return;
+    stop(); sx = e.clientX; sy = e.clientY;
+    t = setTimeout(() => { t = null; swallowClick(); try{ if (navigator.vibrate) navigator.vibrate(12); }catch(_){} fn(); }, 480);
+  });
+  el.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) stop(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(n => el.addEventListener(n, stop));
+  el.addEventListener('contextmenu', e => { e.preventDefault(); if (t){ stop(); fn(); } });
+}
+
+function beginDrag(e, kind, node, label, onDrop){
+  e.preventDefault();
+  const a = document.activeElement; if (a && a.blur && a !== document.body) a.blur();
+  const handle = e.currentTarget, main = $('#main');
+  try{ handle.setPointerCapture(e.pointerId); }catch(_){}
+  const r = node.getBoundingClientRect();
+  const ghost = h('div', { class:'ghost' }, label);
+  ghost.style.width = r.width + 'px'; ghost.style.left = r.left + 'px';
+  document.body.append(ghost);
+  document.body.classList.add('dragging-now');
+  node.classList.add('dragging');
+  if (kind === 'group') main.classList.add('secdrag');
+  let y = e.clientY, raf = 0, live = true;
+  const place = () => {
+    ghost.style.top = (y - 22) + 'px';
+    const el = document.elementFromPoint(r.left + r.width / 2, y);
+    if (!el) return;
+    if (kind === 'group'){
+      const box = el.closest('section.group[data-gid]');
+      if (box && box !== node){
+        const b = box.getBoundingClientRect();
+        main.insertBefore(node, y < b.top + b.height / 2 ? box : box.nextSibling);
+      }
+      return;
+    }
+    const other = el.closest('li[data-iid]');
+    if (other){
+      if (other === node) return;
+      const b = other.getBoundingClientRect();
+      other.parentNode.insertBefore(node, y < b.top + b.height / 2 ? other : other.nextSibling);
+      return;
+    }
+    const box = el.closest('section.group[data-gid]');
+    if (box && (el.closest('.ghead') || el.closest('.emptysec') || !box.querySelector(':scope > ul'))){
+      let ul = box.querySelector(':scope > ul');
+      if (!ul){ const p = box.querySelector(':scope > .emptysec'); if (p) p.remove(); ul = h('ul'); box.append(ul); }
+      ul.insertBefore(node, ul.firstChild);
+    }
+  };
+  const loop = () => {
+    if (!live) return;
+    if (y < 90) window.scrollBy(0, -14); else if (y > window.innerHeight - 90) window.scrollBy(0, 14);
+    place(); raf = requestAnimationFrame(loop);
+  };
+  const finish = commit => {
+    if (!live) return;
+    live = false; cancelAnimationFrame(raf);
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel);
+    ghost.remove(); document.body.classList.remove('dragging-now'); main.classList.remove('secdrag'); node.classList.remove('dragging');
+    if (commit) onDrop(); else render();
+  };
+  const move = ev => { y = ev.clientY; };
+  const up = () => finish(true), cancel = () => finish(false);
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cancel);
+  loop();
+}
+function dragItem(e, l, it, li){
+  beginDrag(e, 'item', li, it.t || 'Item', () => {
+    const box = li.closest('section.group[data-gid]');
+    if (!box){ render(); return; }
+    const gid = box.dataset.gid, nx = li.nextElementSibling, nid = nx && nx.dataset.iid;
+    mutate(l.id, x => {
+      const tg = findGroup(x, gid); if (!tg) return;
+      let item = null;
+      x.groups.forEach(q => { const k = q.items.findIndex(i => i.id === it.id); if (k >= 0) item = q.items.splice(k, 1)[0]; });
+      if (!item) return;
+      const k = nid ? tg.items.findIndex(i => i.id === nid) : -1;
+      if (k >= 0) tg.items.splice(k, 0, item); else tg.items.push(item);
+    });
+  });
+}
+function dragGroup(e, l, g, box){
+  beginDrag(e, 'group', box, g.name || 'Items', () => {
+    const nx = box.nextElementSibling, nid = nx && nx.dataset && nx.dataset.gid;
+    mutate(l.id, x => {
+      const k = x.groups.findIndex(q => q.id === g.id); if (k < 0) return;
+      const gg = x.groups.splice(k, 1)[0];
+      const j = nid ? x.groups.findIndex(q => q.id === nid) : -1;
+      if (j >= 0) x.groups.splice(j, 0, gg); else x.groups.push(gg);
+    });
+  });
+}
+function hintOnce(){
+  try{ if (localStorage.getItem('checklists.hint1')) return; localStorage.setItem('checklists.hint1', '1'); }catch(_){ return; }
+  toast('Tip: hold an item or a section name to edit it and drag it.');
+}
+
 function renderList(main, l){
   const isTpl = !!l.tpl;
   const edit = ui.edit;
@@ -1035,10 +1242,13 @@ function renderList(main, l){
           onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } })
       : h('h1', null, l.name),
     h('button', { class:'btn small', type:'button', 'aria-pressed':String(isFav(l)), 'aria-label':isFav(l) ? 'Remove from favorites' : 'Add to favorites', onclick:() => toggleFav(l) }, isFav(l) ? '\u2605' : '\u2606'),
+    edit ? null : h('button', { class:'btn small', type:'button', 'aria-expanded':String(!!ui.addMenu),
+      'aria-label':'Add an item, section or tag', onclick:() => { ui.addMenu = ui.addMenu ? null : 'menu'; render(); } }, '＋'),
     h('button', { class:'btn small' + (edit ? ' primary' : ''), type:'button', onmousedown:e => e.preventDefault(),
-      onclick:() => { const a = document.activeElement; if (a && a.blur && a !== document.body) a.blur(); ui.edit = !ui.edit; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
+      onclick:() => { const a = document.activeElement; if (a && a.blur && a !== document.body) a.blur(); ui.edit = !ui.edit; ui.editItem = null; ui.editGroup = null; ui.editLabel = null; ui.addMenu = null; ui.exportText = null; clearConfirm(); render(); } }, edit ? 'Done' : 'Edit')
   ));
   main.append(banner());
+  if (!edit && ui.addMenu) main.append(addPanel(l));
   if (edit){
     main.append(h('input', { type:'text', value:l.desc || '', placeholder:'Description (shows under the title)', 'aria-label':'Description', style:'margin-bottom:12px',
       onchange:e => mutate(l.id, x => { x.desc = e.target.value.trim(); }, { quiet:true }),
@@ -1072,12 +1282,17 @@ function renderList(main, l){
   const show = it => f.every(x => (it.l || []).includes(x));
   if (!edit && l.labels.length){
     main.append(h('div', { class:'chips' },
-      l.labels.map(nm => h('button', { class:'chip' + (ui.filter.has(nm) ? ' on' : ''), type:'button', 'aria-pressed':String(ui.filter.has(nm)),
-        onclick:() => { if (ui.filter.has(nm)) ui.filter.delete(nm); else ui.filter.add(nm); render(); } }, nm)),
+      l.labels.map(nm => {
+        const c = h('button', { class:'chip' + (ui.filter.has(nm) ? ' on' : '') + (ui.editLabel === nm ? ' editing' : ''), type:'button', 'aria-pressed':String(ui.filter.has(nm)),
+          onclick:() => { if (ui.filter.has(nm)) ui.filter.delete(nm); else ui.filter.add(nm); render(); } }, nm);
+        longPress(c, () => { ui.editLabel = nm; ui.addMenu = null; render(); });
+        return c;
+      }),
       f.length ? h('button', { class:'link', type:'button', onclick:() => { ui.filter = new Set(); render(); } }, 'Clear') : null));
+    if (ui.editLabel && l.labels.includes(ui.editLabel)) main.append(labelPanel(l, ui.editLabel));
   }
-  const visible = l.groups.filter(g => edit || (f.length ? g.items.some(show) : g.items.length));
-  if (!edit && !s.total){
+  const visible = l.groups.filter(g => edit || (f.length ? g.items.some(i => show(i) || i.id === ui.editItem) : (g.items.length || g.name)));   // named sections stay visible while empty
+  if (!edit && !s.total && !l.groups.some(g => g.name)){
     main.append(h('p', { class:'note', style:'margin-top:18px' }, 'Nothing here yet. Add an item below.'));
   } else if (!edit && f.length && !visible.length){
     main.append(h('p', { class:'note', style:'margin-top:18px' }, 'No items have all of those labels.'));
@@ -1089,8 +1304,8 @@ function renderList(main, l){
     const gi = l.groups.indexOf(g);
     const gDone = g.items.filter(i => i.d).length;
     const ck = l.id + ':' + g.id;
-    const isCollapsed = !edit && !ui.printing && ui.collapsed.has(ck);
-    const box = h('section', { class:'group' });
+    const isCollapsed = !edit && !ui.printing && ui.collapsed.has(ck) && ui.editGroup !== g.id;
+    const box = h('section', { class:'group', 'data-gid':g.id });
 
     if (edit && showHeads){
       box.append(h('div', { class:'ghead' },
@@ -1107,42 +1322,42 @@ function renderList(main, l){
                 mutate(l.id, x => { x.groups = x.groups.filter(q => q.id !== g.id); }, { undo:'Deleted section' });
               } }, '×')
           : null));
+    } else if (!edit && showHeads && ui.editGroup === g.id){
+      box.append(h('div', { class:'ghead editing' },
+        h('button', { class:'ib drag', type:'button', 'aria-label':'Drag to move this section', onpointerdown:ev => dragGroup(ev, l, g, box) }, '≡'),
+        h('input', { type:'text', value:g.name, placeholder:'Section name', 'aria-label':'Section name',
+          onchange:e => { mutate(l.id, x => { findGroup(x, g.id).name = e.target.value.trim(); }, { quiet:true }); syncAddBar(lists.get(l.id)); },
+          onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
+        l.groups.length > 1
+          ? h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete section',
+              onclick:() => { ui.editGroup = null; mutate(l.id, x => { x.groups = x.groups.filter(q => q.id !== g.id); }, { undo:'Deleted section' }); } }, '×')
+          : null,
+        h('button', { class:'btn small primary', type:'button', onmousedown:e => e.preventDefault(),
+          onclick:() => { const a = document.activeElement; if (a && a.blur) a.blur(); ui.editGroup = null; render(); } }, 'Done')));
     } else if (!edit && showHeads){
+      const gn = h('button', { class:'gname', type:'button', 'aria-expanded':String(!isCollapsed),
+        onclick:() => { if (ui.collapsed.has(ck)) ui.collapsed.delete(ck); else ui.collapsed.add(ck); render(); } },
+        (ui.printing ? '' : isCollapsed ? '▸ ' : '▾ ') + (g.name || 'Items'));
+      longPress(gn, () => { ui.editGroup = g.id; ui.editItem = null; render(); });
       box.append(h('div', { class:'ghead' },
-        h('button', { class:'gname', type:'button', 'aria-expanded':String(!isCollapsed),
-          onclick:() => { if (ui.collapsed.has(ck)) ui.collapsed.delete(ck); else ui.collapsed.add(ck); render(); } },
-          (ui.printing ? '' : isCollapsed ? '▸ ' : '▾ ') + (g.name || 'Items')),
+        gn,
         h('span', { class:'cnt' }, gDone + '/' + g.items.length),
         gDone ? h('button', { class:'link', type:'button',
           onclick:() => mutate(l.id, x => findGroup(x, g.id).items.forEach(i => { i.d = false; }), { undo:'Unchecked ' + (g.name || 'section') }) }, 'Reset') : null));
     }
 
     if (!isCollapsed){
-      box.append(h('ul', null, (edit ? g.items : g.items.filter(show)).map((it, ii) => {
-        if (edit){
-          return h('li', null, h('div', { class:'erow' },
-            h('button', { class:'ib', type:'button', 'aria-label':'Move up', disabled:ii === 0,
-              onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii - 1)) }, '↑'),
-            h('button', { class:'ib', type:'button', 'aria-label':'Move down', disabled:ii === g.items.length - 1,
-              onclick:() => mutate(l.id, x => swap(findGroup(x, g.id).items, ii, ii + 1)) }, '↓'),
-            h('input', { type:'text', value:it.t, placeholder:l.main || 'Item', 'aria-label':'Item text',
-              onchange:e => { const v = e.target.value.trim(); if (v) mutate(l.id, x => { findItem(findGroup(x, g.id), it.id).t = v; }, { quiet:true }); else e.target.value = it.t; },
-              onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }),
-            h('button', { class:'ib del', type:'button', onmousedown:e => e.preventDefault(), 'aria-label':'Delete item',
-              onclick:() => mutate(l.id, x => { const gg = findGroup(x, g.id); gg.items = gg.items.filter(q => q.id !== it.id); }, { undo:'Deleted “' + it.t + '”' }) }, '×')),
-            usesDet(l) ? h('div', { class:'etags' }, l.cols.map((c, k) => h('input', { type:'text', value:xVal(it, k), placeholder:c, 'aria-label':c,
-              onchange:e => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q){ q.x = q.x || []; while (q.x.length < x.cols.length) q.x.push(''); q.x[k] = e.target.value.trim(); } }, { quiet:true }),
-              onkeydown:e => { if (e.key === 'Enter') e.target.blur(); } }))) : null,
-            l.labels.length ? h('div', { class:'etags' }, l.labels.map(nm => h('button', { class:'chip sm' + ((it.l || []).includes(nm) ? ' on' : ''), type:'button',
-              'aria-pressed':String((it.l || []).includes(nm)),
-              onclick:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); q.l = q.l || []; const k = q.l.indexOf(nm); if (k < 0) q.l.push(nm); else q.l.splice(k, 1); }) }, nm))) : null);
-        }
-        return h('li', { class:it.d ? 'done' : '' }, h('label', { class:'row' },
+      if (!edit && !g.items.length && !f.length) box.append(h('p', { class:'note emptysec' }, 'Nothing here yet.'));
+      else box.append(h('ul', null, (edit ? g.items : g.items.filter(i => show(i) || i.id === ui.editItem)).map((it, ii) => {
+        if (edit || ui.editItem === it.id) return editItemLi(l, g, it, ii, !edit);
+        const li = h('li', { class:it.d ? 'done' : '', 'data-iid':it.id }, h('label', { class:'row' },
           h('input', { type:'checkbox', checked:it.d,
             onchange:() => mutate(l.id, x => { const q = findItem(findGroup(x, g.id), it.id); if (q) q.d = !q.d; }) }),
           h('span', { class:'box' }),
           h('span', { class:'txt' }, it.t, it.l && it.l.length ? h('span', { class:'tags' }, it.l.map(x => h('span', { class:'tag' }, x))) : null),
           usesDet(l) && l.cols.some((c, k) => xVal(it, k)) ? detsEl(l, l.cols.map((c, k) => xVal(it, k))) : null));
+        longPress(li, () => { const a = document.activeElement; if (a && a.blur) a.blur(); ui.editItem = it.id; ui.editGroup = null; render(); });
+        return li;
       })));
       if (edit && !g.items.length) box.append(h('p', { class:'note' }, 'No items in this section.'));
     }
@@ -1216,6 +1431,7 @@ function renderList(main, l){
           toast(isTpl ? 'Template deleted' : 'List deleted', () => { lists.set(id, normalize(id, JSON.parse(before))); persist(id); render(); });
         } }, 'Delete ' + kind)));
   }
+  if (!edit && l.groups.some(g => g.items.length)) hintOnce();
 }
 
 function exportText(l){
